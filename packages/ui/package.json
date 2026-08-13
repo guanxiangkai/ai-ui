@@ -1,0 +1,58 @@
+{
+  "name": "@guanxiangkai/ui",
+  "version": "0.1.0",
+  "description": "通用 AI 应用共享的中性 Vue 组件和设计令牌",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guanxiangkai/ai-ui.git",
+    "directory": "packages/ui"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "vp build",
+    "check": "vp check",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "catalog:",
+    "@guanxiangkai/platform-client": "workspace:^"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "catalog:",
+    "@vue/compiler-sfc": "catalog:",
+    "@vue/language-core": "catalog:",
+    "@vue/test-utils": "catalog:",
+    "element-plus": "catalog:",
+    "happy-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite-plugin-dts": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "vue": "catalog:"
+  },
+  "peerDependencies": {
+    "element-plus": "^2.14.3",
+    "vue": "^3.5.40"
+  }
+}

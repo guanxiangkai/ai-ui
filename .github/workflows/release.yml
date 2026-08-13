@@ -1,0 +1,45 @@
+name: 发布软件包
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: package-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: 验证并发布开源包
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: package-release
+    steps:
+      - name: 校验发布分支
+        run: |
+          set -eu
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "公开发布只能从 main 分支执行" >&2
+            exit 1
+          fi
+
+      - name: 检出源码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 配置 Vite+
+        uses: voidzero-dev/setup-vp@313600b80b104eadebb9111787d37a2e83e014ca # v1.17.0
+        with:
+          node-version: "24.19.0"
+          cache: true
+
+      - name: 安装依赖
+        run: vp install --frozen-lockfile
+
+      - name: 执行质量门禁
+        run: vp run ready
+
+      - name: 发布软件包
+        run: vp pm --recursive --filter './packages/*' publish --tag latest --access public --registry https://registry.npmjs.org/ --no-git-checks

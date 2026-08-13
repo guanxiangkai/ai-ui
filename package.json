@@ -1,0 +1,28 @@
+{
+  "name": "ai-ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "通用 AI 应用前端基础组件库",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "vp run -r build",
+    "check": "vp check",
+    "test": "vp run -r test",
+    "check:packages": "node scripts/check-packages.mjs",
+    "ready": "vp run -r build && vp check && vp run -r test && node scripts/check-packages.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0",
+    "pnpm": ">=11.21.0"
+  },
+  "packageManager": "pnpm@11.21.0"
+}

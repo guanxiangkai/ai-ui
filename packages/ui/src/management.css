@@ -1,0 +1,90 @@
+@import "./system/system.css";
+@import "./system/roles.css";
+
+.platform-management-page {
+  --platform-management-accent: var(--platform-color-primary);
+  --platform-management-accent-soft: var(--platform-color-primary-soft);
+
+  min-width: 0;
+  padding: clamp(16px, 2.4vw, 28px);
+  color: var(--platform-color-text);
+  background: var(--platform-management-background);
+}
+
+.platform-management-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--platform-space-4);
+  margin-bottom: var(--platform-space-6);
+}
+
+.platform-management-page__header h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.2;
+}
+
+.platform-management-page__header p:not(.platform-management-page__eyebrow) {
+  max-width: 720px;
+  margin: var(--platform-space-2) 0 0;
+  color: var(--platform-color-text-muted);
+}
+
+.platform-management-page__eyebrow {
+  margin: 0 0 var(--platform-space-2);
+  color: var(--platform-management-accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.platform-management-page__actions,
+.platform-management-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--platform-space-2);
+}
+
+.platform-management-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 420px) minmax(140px, 180px) auto;
+  gap: var(--platform-space-3);
+  padding: var(--platform-space-4);
+  background: var(--platform-color-surface);
+  border: 1px solid var(--platform-color-border);
+  border-bottom: 0;
+  border-radius: var(--platform-radius-md) var(--platform-radius-md) 0 0;
+}
+
+.platform-management-table {
+  overflow: hidden;
+  background: var(--platform-color-surface);
+  border: 1px solid var(--platform-color-border);
+  border-radius: 0 0 var(--platform-radius-md) var(--platform-radius-md);
+  box-shadow: var(--platform-shadow-subtle);
+}
+
+.platform-management-row-actions {
+  gap: 0;
+}
+
+.platform-management-pagination {
+  justify-content: flex-end;
+  margin-top: var(--platform-space-4);
+}
+
+@media (max-width: 720px) {
+  .platform-management-page__header {
+    flex-direction: column;
+  }
+
+  .platform-management-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-management-pagination {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}

@@ -1,0 +1,31 @@
+:root {
+  --platform-color-primary: #2463eb;
+  --platform-color-primary-hover: #1d4ed8;
+  --platform-color-primary-soft: #e9f0ff;
+  --platform-color-surface: #ffffff;
+  --platform-color-surface-muted: #f5f7fb;
+  --platform-management-background: #f4f7fb;
+  --platform-system-page-background: #f4f7fb;
+  --platform-system-card-background: #ffffff;
+  --platform-system-hero-background: linear-gradient(135deg, #e7f1e3, #ffffff);
+  --platform-system-role-hero-background: linear-gradient(135deg, #e6effb, #ffffff);
+  --platform-system-table-header-background: #eef4eb;
+  --platform-system-table-hover-background: #f4f8f1;
+  --platform-system-code-background: #edf3fb;
+  --platform-color-text: #172033;
+  --platform-color-text-muted: #667085;
+  --platform-color-border: #dbe1ea;
+  --platform-color-danger: #c9362b;
+  --platform-radius-sm: 6px;
+  --platform-radius-md: 10px;
+  --platform-system-radius-xl: 24px;
+  --platform-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --platform-shadow-card: 0 16px 48px rgb(23 32 51 / 12%);
+  --platform-shadow-subtle: 0 8px 24px rgb(23 32 51 / 8%);
+  --platform-space-1: 4px;
+  --platform-space-2: 8px;
+  --platform-space-3: 12px;
+  --platform-space-4: 16px;
+  --platform-space-6: 24px;
+  --platform-space-8: 32px;
+}
