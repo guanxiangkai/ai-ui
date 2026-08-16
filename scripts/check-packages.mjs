@@ -7,7 +7,7 @@ const expectedPackages = new Set([
   "@guanxiangkai/ui",
   "@guanxiangkai/build-config",
 ]);
-const expectedRegistry = "https://registry.npmjs.org/";
+const expectedRegistry = "https://npm.pkg.github.com";
 const expectedLicense = "Apache-2.0";
 const semverPattern =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
@@ -34,7 +34,7 @@ for (const entry of entries) {
     failures.push(`${manifest.name}: 发布注册地址不正确`);
   }
   if (manifest.publishConfig?.access !== "public") {
-    failures.push(`${manifest.name}: 开源 npm 软件包的 access 必须为 public`);
+    failures.push(`${manifest.name}: 开源 GitHub Package 的 access 必须为 public`);
   }
   if (manifest.license !== expectedLicense) {
     failures.push(`${manifest.name}: 软件包许可证必须为 ${expectedLicense}`);

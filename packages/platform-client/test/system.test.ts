@@ -31,15 +31,6 @@ describe("PlatformSystemClient", () => {
     });
   });
 
-  it("通过当前部门接口读取水印所需的组织身份", async () => {
-    const transport = new RecordingTransport();
-    const client = new PlatformSystemClient(transport);
-
-    await client.getCurrentDepartment();
-
-    expect(transport.calls).toEqual([{ path: "/system/dept/current", options: {} }]);
-  });
-
   it("使用统一契约访问区域、消息、天气和设置", async () => {
     const transport = new RecordingTransport();
     const client = new PlatformSystemClient(transport);
@@ -75,6 +66,15 @@ describe("PlatformSystemClient", () => {
         },
       },
     ]);
+  });
+
+  it("通过当前部门接口读取水印所需的组织身份", async () => {
+    const transport = new RecordingTransport();
+    const client = new PlatformSystemClient(transport);
+
+    await client.getCurrentDepartment();
+
+    expect(transport.calls).toEqual([{ path: "/system/dept/current", options: {} }]);
   });
 
   it("把导入模板和字段映射作为两个独立资源", async () => {

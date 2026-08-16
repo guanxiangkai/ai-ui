@@ -4,12 +4,12 @@ AI UI 是面向通用 AI 应用的前端基础组件库。仓库采用 pnpm mono
 
 ## 软件包
 
-| 软件包                          | 职责                                                    |
-| ------------------------------- | ------------------------------------------------------- |
-| `@guanxiangkai/platform-client` | 通用 HTTP、租户、认证、系统、Agent 和调度契约           |
-| `@guanxiangkai/vue-platform`    | Vue/Pinia/Router 的平台注入、会话状态和权限守卫         |
-| `@guanxiangkai/ui`              | 通用登录、异常、系统管理、Agent、定时任务页面和主题令牌 |
-| `@guanxiangkai/build-config`    | Vite 库构建与声明文件生成配置                           |
+| 软件包                          | 职责                                                             |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `@guanxiangkai/platform-client` | 通用 HTTP、租户、认证、系统、Agent 和调度契约                    |
+| `@guanxiangkai/vue-platform`    | Vue/Pinia/Router 的平台注入、会话状态和权限守卫                  |
+| `@guanxiangkai/ui`              | 通用登录、异常、系统管理、Agent、定时任务页面和主题令牌          |
+| `@guanxiangkai/build-config`    | Vite 库构建与声明文件生成配置                                    |
 
 应用业务页面、业务接口模型和应用路由继续留在各自仓库；租户、组织、账户、角色、菜单、字典、区域、导入模板、消息、天气、系统设置、审计日志、Agent 和定时任务等通用页面只在本仓库实现一次。消费端通过客户端、权限集合、路由注册表和 CSS 变量注入运行上下文与视觉主题。
 
@@ -92,10 +92,15 @@ useSession = createPlatformSessionStore({
 ## 版本与发布
 
 1. 在变更分支执行 `vp run changeset`，描述受影响的软件包及版本级别。
-2. 通过功能分支向受保护的 `main` 提交 Pull Request，并通过全部必需状态检查。
-3. 在 GitHub Actions 手工运行“发布软件包”；`latest` 只能从 `main` 发布。
-4. 发布环境 `package-release` 必须配置人工审批，并在 npm 软件包设置中将本仓库工作流登记为可信发布者。
+2. 通过功能分支向 `main` 提交 Pull Request 并通过 CI；预发布可使用独立的 `test` 分支。
+3. 在 GitHub Actions 手工运行“发布软件包”；`latest` 只能从 `main` 发布，`next` 只能从 `test` 发布。
+4. 发布环境 `package-release` 必须配置人工审批，工作流使用仓库临时 `GITHUB_TOKEN` 写入 GitHub Packages。
 
-软件包发布到公共 npm Registry，作用域为 `@guanxiangkai`，并声明 `access: public`。工作流使用
-GitHub Actions OIDC 可信发布，不保存长期 npm Token，也不会在普通 push 时自动发布。首次发布或
-可信发布者配置变更必须在 npm 官方界面完成最小权限校验。
+软件包发布到 `https://npm.pkg.github.com`，作用域为仓库所有者 `@guanxiangkai`，并声明
+`access: public`。GitHub Package 的实际可见性仍必须在首次发布和仓库迁移后核验；仓库不保存
+长期发布凭据，也不会在普通 push 时自动发布。
+
+GitHub npm registry 的客户端认证要求以 GitHub 当前规则为准；需要 Token 时只在用户级 npm
+配置或 CI Secret 中提供 `NODE_AUTH_TOKEN`，不得把 Token 写入本仓库的 `.npmrc`。
+
+更完整的边界和依赖方向见 [架构说明](docs/architecture.md)。

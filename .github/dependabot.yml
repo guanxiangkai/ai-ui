@@ -9,13 +9,6 @@ updates:
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
     target-branch: main
-    ignore:
-      - dependency-name: typescript
-        update-types:
-          - version-update:semver-major
-      - dependency-name: "@types/node"
-        update-types:
-          - version-update:semver-major
     groups:
       frontend-toolchain:
         patterns:
@@ -30,12 +23,3 @@ updates:
           - pinia
           - vue-router
           - element-plus
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "03:30"
-      timezone: Asia/Shanghai
-    open-pull-requests-limit: 5
-    target-branch: main

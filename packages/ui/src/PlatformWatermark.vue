@@ -41,7 +41,9 @@ const watermarkStyle = computed<CSSProperties>(() => ({
   "--platform-watermark-rotate": `${clamp(props.rotate, -90, 90, -24)}deg`,
   "--platform-watermark-columns": String(columns.value),
   "--platform-watermark-rows": String(rows.value),
-  "--platform-watermark-z-index": String(Math.round(clamp(props.zIndex, 1, 2_147_483_000, 4000))),
+  "--platform-watermark-z-index": String(
+    Math.round(clamp(props.zIndex, 1, 2_147_483_000, 4000)),
+  ),
 }));
 </script>
 

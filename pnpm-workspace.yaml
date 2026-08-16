@@ -37,4 +37,4 @@ peerDependencyRules:
     - vitest
 
 registries:
-  "@guanxiangkai": https://registry.npmjs.org/
+  "@guanxiangkai": https://npm.pkg.github.com

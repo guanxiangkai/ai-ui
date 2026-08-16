@@ -2,10 +2,19 @@ name: 发布软件包
 
 on:
   workflow_dispatch:
+    inputs:
+      dist-tag:
+        description: npm 发布标签
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - next
 
 permissions:
   contents: read
-  id-token: write
+  packages: write
 
 concurrency:
   group: package-release
@@ -17,23 +26,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: package-release
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: 校验发布分支
+        env:
+          DIST_TAG: ${{ inputs.dist-tag }}
         run: |
           set -eu
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "公开发布只能从 main 分支执行" >&2
+          if [ "$DIST_TAG" = "latest" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "latest 只能从 main 分支发布" >&2
+            exit 1
+          fi
+          if [ "$DIST_TAG" = "next" ] && [ "$GITHUB_REF" != "refs/heads/test" ]; then
+            echo "next 只能从 test 分支发布" >&2
             exit 1
           fi
 
       - name: 检出源码
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: 配置 Vite+
-        uses: voidzero-dev/setup-vp@313600b80b104eadebb9111787d37a2e83e014ca # v1.17.0
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
         with:
           node-version: "24.19.0"
           cache: true
+
+      - name: 配置 GitHub Packages 认证
+        run: |
+          set -eu
+          test -n "$NODE_AUTH_TOKEN"
+          vp pm config set --location=user @guanxiangkai:registry https://npm.pkg.github.com
+          vp pm config set --location=user //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
+          vp pm config set --location=user always-auth true
 
       - name: 安装依赖
         run: vp install --frozen-lockfile
@@ -42,4 +67,6 @@ jobs:
         run: vp run ready
 
       - name: 发布软件包
-        run: vp pm --recursive --filter './packages/*' publish --tag latest --access public --registry https://registry.npmjs.org/ --no-git-checks
+        env:
+          DIST_TAG: ${{ inputs.dist-tag }}
+        run: vp pm --recursive --filter './packages/*' publish --tag "$DIST_TAG" --registry https://npm.pkg.github.com

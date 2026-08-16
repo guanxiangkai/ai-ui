@@ -8,5 +8,4 @@
 - 禁止提交 Token、密码、私有仓库凭据、带认证信息的 `.npmrc`、构建产物和运行日志。
 - 依赖安装、格式化、检查、测试和构建均在满足项目版本基线的 Linux 环境执行。
 - 前端工具链统一使用 Vite+；禁止另行引入 ESLint、Prettier 或重复的构建、检查和测试工具链。
-- 发布前必须通过 `vp run ready`，版本变更使用 Changesets，包发布仅允许从受保护的 `main` 和 GitHub Actions Environment 人工触发到公共 npm Registry，并使用 OIDC 可信发布。
-- 当前公开基线只维护受保护的 `main`；后续修改通过功能分支、Pull Request 和必需状态检查进入 `main`。
+- 发布前必须通过 `vp run ready`，版本变更使用 Changesets，包发布仅允许通过受保护的 GitHub Actions 环境人工触发到 GitHub Packages。
