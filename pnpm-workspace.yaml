@@ -14,7 +14,7 @@ catalog:
   pinia: 4.0.2
   typescript: 6.0.3
   vite: npm:@voidzero-dev/vite-plus-core@0.2.8
-  vite-plus: 0.2.8
+  vite-plus: 0.2.9
   vite-plugin-dts: 5.0.3
   vitest: 4.1.10
   vue: 3.5.41
