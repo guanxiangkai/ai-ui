@@ -1,4 +1,5 @@
 import type { PlatformRequestClient, QueryValue } from "./types.js";
+import { digestPassword } from "./password.js";
 
 export interface SystemPage<T> {
   records: T[];
@@ -222,6 +223,7 @@ export interface UserDetail extends UserSummary {
 export interface UserSavePayload {
   id?: string | undefined;
   username: string;
+  /** 用户刚输入的原密码；客户端仅向网络发送其 SHA-1 摘要。 */
   password?: string | undefined;
   nickname?: string | undefined;
   realName?: string | undefined;
@@ -360,6 +362,14 @@ function compactQuery(query: SystemQuery): Record<string, QueryValue> {
   );
 }
 
+async function passwordDigestUserPayload(
+  payload: UserSavePayload,
+): Promise<Record<string, unknown>> {
+  const { password, ...userPayload } = payload;
+  if (password === undefined) return userPayload;
+  return { ...userPayload, passwordDigest: await digestPassword(password) };
+}
+
 /** platform-system 的类型安全浏览器客户端。 */
 export class PlatformSystemClient {
   constructor(private readonly http: PlatformRequestClient) {}
@@ -410,14 +420,21 @@ export class PlatformSystemClient {
     return this.getEntity<UserDetail>("/system/user", id);
   }
 
-  createUser(payload: UserSavePayload): Promise<string> {
-    return this.http.request<string>("/system/user", { method: "POST", body: payload });
+  async createUser(payload: UserSavePayload): Promise<string> {
+    const containsPassword = payload.password !== undefined;
+    return this.http.request<string>("/system/user", {
+      method: "POST",
+      body: await passwordDigestUserPayload(payload),
+      ...(containsPassword ? { retryUnauthorized: false } : {}),
+    });
   }
 
-  updateUser(id: string, payload: UserSavePayload): Promise<void> {
+  async updateUser(id: string, payload: UserSavePayload): Promise<void> {
+    const containsPassword = payload.password !== undefined;
     return this.http.request<void>(`/system/user/${encodeId(id)}`, {
       method: "PUT",
-      body: payload,
+      body: await passwordDigestUserPayload(payload),
+      ...(containsPassword ? { retryUnauthorized: false } : {}),
     });
   }
 
@@ -429,10 +446,12 @@ export class PlatformSystemClient {
     return this.deleteEntity("/system/user", id);
   }
 
-  resetUserPassword(id: string): Promise<string> {
-    return this.http.request<string>("/system/user/resetPassword", {
+  async resetUserPassword(id: string, rawNewPassword: string): Promise<boolean> {
+    return this.http.request<boolean>("/system/user/resetPassword", {
       method: "POST",
       query: { id },
+      body: { newPasswordDigest: await digestPassword(rawNewPassword) },
+      retryUnauthorized: false,
     });
   }
 

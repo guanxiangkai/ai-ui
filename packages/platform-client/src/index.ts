@@ -25,6 +25,7 @@ export type {
   AgentVoiceRecord,
 } from "./agent.js";
 export { hasPlatformPermission, matchesPlatformPermission, PlatformAuthClient } from "./auth.js";
+export { digestPassword, generateTemporaryPassword } from "./password.js";
 export { PLATFORM_API_CODES, PLATFORM_HTTP_STATUS } from "./constants.js";
 export { PlatformError } from "./error.js";
 export { PlatformHttpClient } from "./http.js";

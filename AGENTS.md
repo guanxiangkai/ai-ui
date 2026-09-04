@@ -10,3 +10,5 @@
 - 前端工具链统一使用 Vite+；禁止另行引入 ESLint、Prettier 或重复的构建、检查和测试工具链。
 - 发布前必须通过 `vp run ready`，版本变更使用 Changesets，包发布仅允许从受保护的 `main` 和 GitHub Actions Environment 人工触发到公共 npm Registry，并使用 OIDC 可信发布。
 - 当前公开基线只维护受保护的 `main`；后续修改通过功能分支、Pull Request 和必需状态检查进入 `main`。
+- 当前由 `guanxiangkai` 单人开发和维护：本人通过该 GitHub 账户发起并维护的变更无需其他人的人工批准；其他账户（包括依赖更新机器人）的变更必须由 `guanxiangkai` 审核当前提交后才能合并发布，新提交使旧批准失效。
+- 审核归属以 GitHub 账户、Pull Request 和 CODEOWNERS 为准，不以可自行填写的 Git 作者姓名或邮箱作为免审凭据；自动检查仍须通过。新增可向本人分支写入的协作者前，必须重新核验该免审边界。

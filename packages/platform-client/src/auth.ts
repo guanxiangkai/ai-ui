@@ -1,10 +1,11 @@
 import type { PlatformRequestClient } from "./types.js";
+import { digestPassword } from "./password.js";
 
 /** 平台登录请求。 */
 export interface LoginRequest {
   /** 登录账号。 */
   username: string;
-  /** 登录密码。 */
+  /** 用户刚输入的登录密码，只在本地计算摘要。 */
   password: string;
   /** 可选验证码。 */
   captcha?: string;
@@ -110,8 +111,20 @@ export class PlatformAuthClient implements AuthClient {
   }
 
   /** 使用账号密码创建会话。 */
-  login(request: LoginRequest): Promise<AuthSession> {
-    return this.http.request<AuthSession>(this.endpoints.login, { method: "POST", body: request });
+  async login(request: LoginRequest): Promise<AuthSession> {
+    const passwordDigest = await digestPassword(request.password);
+    const loginRequest = {
+      username: request.username,
+      ...(request.captcha === undefined ? {} : { captcha: request.captcha }),
+      ...(request.captchaKey === undefined ? {} : { captchaKey: request.captchaKey }),
+    };
+
+    return this.http.request<AuthSession>(this.endpoints.login, {
+      method: "POST",
+      body: { ...loginRequest, passwordDigest },
+      accessToken: null,
+      retryUnauthorized: false,
+    });
   }
 
   /** 注销当前访问令牌。 */
