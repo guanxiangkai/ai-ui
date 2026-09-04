@@ -334,6 +334,7 @@ import {
   ElTag,
 } from "element-plus";
 import { Plus, Refresh, Search } from "@element-plus/icons-vue";
+import { generateTemporaryPassword } from "@guanxiangkai/platform-client";
 import type {
   QueryValue,
   SystemEntity,
@@ -684,15 +685,20 @@ function handleMore(command: string, user: UserSummary) {
 }
 
 async function resetPassword(user: UserSummary) {
+  let temporaryPassword: string | undefined;
   try {
     await ElMessageBox.confirm(`确认重置账户“${user.username}”的登录密码？`, "重置密码", {
       type: "warning",
       confirmButtonText: "确认重置",
       cancelButtonText: "取消",
     });
-    const password = await props.client.resetUserPassword(user.id);
+    temporaryPassword = generateTemporaryPassword();
+    const reset = await props.client.resetUserPassword(user.id, temporaryPassword);
+    if (!reset) {
+      throw new Error("服务端未确认密码重置");
+    }
     await ElMessageBox.alert(
-      `新密码：${password}\n请通过安全渠道交给用户，并要求首次登录后立即修改。`,
+      `新密码：${temporaryPassword}\n请通过安全渠道交给用户，并要求首次登录后立即修改。`,
       "密码已重置",
       {
         confirmButtonText: "我已记录",
@@ -702,6 +708,8 @@ async function resetPassword(user: UserSummary) {
     if (error !== "cancel" && error !== "close") {
       ElMessage.error(systemErrorMessage(error, "密码重置失败"));
     }
+  } finally {
+    temporaryPassword = undefined;
   }
 }
 

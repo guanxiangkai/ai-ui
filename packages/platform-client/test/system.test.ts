@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { hasPlatformPermission } from "../src/auth.js";
 import { PlatformSystemClient } from "../src/system.js";
 import { RecordingTransport } from "./support/recording-transport.js";
 
 describe("PlatformSystemClient", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("uses the platform-system contract and removes empty query values", async () => {
     const transport = new RecordingTransport();
     const client = new PlatformSystemClient(transport);
@@ -75,6 +79,52 @@ describe("PlatformSystemClient", () => {
         },
       },
     ]);
+  });
+
+  it("创建和修改用户时仅发送密码摘要", async () => {
+    vi.stubGlobal("isSecureContext", true);
+    const transport = new RecordingTransport();
+    const client = new PlatformSystemClient(transport);
+
+    await client.createUser({
+      username: "alice",
+      password: "你好",
+      userType: "USER",
+      sortOrder: 0,
+    });
+    await client.updateUser("user-1", {
+      username: "alice",
+      password: "0123456789012345678901234567890123456789",
+      userType: "USER",
+      sortOrder: 0,
+    });
+
+    for (const call of transport.calls) {
+      const body = call.options.body as Record<string, unknown>;
+      expect(body.password).toBeUndefined();
+      expect(body.passwordDigest).toMatch(/^[0-9a-f]{40}$/u);
+    }
+  });
+
+  it("重置密码时只提交摘要，并由服务端确认结果", async () => {
+    vi.stubGlobal("isSecureContext", true);
+    const transport = new RecordingTransport(false);
+    const client = new PlatformSystemClient(transport);
+
+    await expect(client.resetUserPassword("user/1", "temporary-value")).resolves.toBe(false);
+    expect(transport.calls).toEqual([
+      {
+        path: "/system/user/resetPassword",
+        options: {
+          method: "POST",
+          query: { id: "user/1" },
+          body: { newPasswordDigest: expect.any(String) },
+        },
+      },
+    ]);
+    const body = transport.calls[0]?.options.body as Record<string, unknown>;
+    expect(body.newPasswordDigest).toMatch(/^[0-9a-f]{40}$/u);
+    expect(body.newPassword).toBeUndefined();
   });
 
   it("把导入模板和字段映射作为两个独立资源", async () => {
