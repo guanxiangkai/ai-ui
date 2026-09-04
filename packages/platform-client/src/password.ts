@@ -7,6 +7,9 @@ export async function digestPassword(rawPassword: string): Promise<string> {
   if (typeof rawPassword !== "string") {
     throw new Error("密码必须是文本");
   }
+  if (rawPassword.length === 0) {
+    throw new Error("密码不能为空");
+  }
 
   if (typeof globalThis.isSecureContext === "boolean" && !globalThis.isSecureContext) {
     throw new Error("当前安全上下文不支持密码摘要");

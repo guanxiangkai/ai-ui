@@ -36,6 +36,16 @@ describe("PlatformAuthClient", () => {
     expect(await digestPassword("你好")).toBe("440ee0853ad1e99f962b63e459ef992d7c211722");
   });
 
+  it("空原密码不会生成摘要或发送登录请求", async () => {
+    vi.stubGlobal("isSecureContext", true);
+    const transport = new RecordingTransport({});
+
+    await expect(
+      new PlatformAuthClient(transport).login({ username: "alice", password: "" }),
+    ).rejects.toThrow("密码不能为空");
+    expect(transport.calls).toHaveLength(0);
+  });
+
   it("密码摘要不可用时不会发送登录请求", async () => {
     vi.stubGlobal("isSecureContext", true);
     vi.stubGlobal("crypto", undefined);
