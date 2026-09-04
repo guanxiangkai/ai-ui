@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/ui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "通用 AI 应用共享的中性 Vue 组件和设计令牌",
   "license": "Apache-2.0",
   "repository": {

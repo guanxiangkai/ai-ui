@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/build-config",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI UI 软件包的统一 Vite+ 库构建配置",
   "license": "Apache-2.0",
   "repository": {

@@ -421,18 +421,20 @@ export class PlatformSystemClient {
   }
 
   async createUser(payload: UserSavePayload): Promise<string> {
+    const containsPassword = payload.password !== undefined;
     return this.http.request<string>("/system/user", {
       method: "POST",
       body: await passwordDigestUserPayload(payload),
-      retryUnauthorized: false,
+      ...(containsPassword ? { retryUnauthorized: false } : {}),
     });
   }
 
   async updateUser(id: string, payload: UserSavePayload): Promise<void> {
+    const containsPassword = payload.password !== undefined;
     return this.http.request<void>(`/system/user/${encodeId(id)}`, {
       method: "PUT",
       body: await passwordDigestUserPayload(payload),
-      retryUnauthorized: false,
+      ...(containsPassword ? { retryUnauthorized: false } : {}),
     });
   }
 

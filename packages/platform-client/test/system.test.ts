@@ -1,10 +1,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { hasPlatformPermission } from "../src/auth.js";
+import { PlatformHttpClient } from "../src/http.js";
 import { PlatformSystemClient } from "../src/system.js";
 import { RecordingTransport } from "./support/recording-transport.js";
 
 describe("PlatformSystemClient", () => {
+  const passwordUserWrites = [
+    [
+      "createUser",
+      (client: PlatformSystemClient) =>
+        client.createUser({
+          username: "alice",
+          password: "new-password",
+          userType: "USER",
+          sortOrder: 0,
+        }),
+    ],
+    [
+      "updateUser",
+      (client: PlatformSystemClient) =>
+        client.updateUser("user-1", {
+          username: "alice",
+          password: "new-password",
+          userType: "USER",
+          sortOrder: 0,
+        }),
+    ],
+  ] satisfies [string, (client: PlatformSystemClient) => Promise<unknown>][];
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -106,6 +130,65 @@ describe("PlatformSystemClient", () => {
       expect(call.options.retryUnauthorized).toBe(false);
     }
   });
+
+  it("修改用户资料时保留默认的 401 恢复并使用新 Token 重放", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+          status: 401,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    let accessToken = "expired-token";
+    const onUnauthorized = vi.fn(() => {
+      accessToken = "fresh-token";
+      return true;
+    });
+    const client = new PlatformSystemClient(
+      new PlatformHttpClient({
+        baseUrl: "/api",
+        fetch: fetchMock,
+        tokenProvider: () => accessToken,
+        onUnauthorized,
+      }),
+    );
+
+    await expect(
+      client.updateUser("user-1", {
+        username: "alice",
+        userType: "USER",
+        sortOrder: 0,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer fresh-token",
+    );
+  });
+
+  it.each(passwordUserWrites)(
+    "密码写请求 %s 不触发 401 恢复或重放",
+    async (_operation, writeUser) => {
+      vi.stubGlobal("isSecureContext", true);
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+          status: 401,
+        }),
+      );
+      const onUnauthorized = vi.fn(() => true);
+      const client = new PlatformSystemClient(
+        new PlatformHttpClient({ baseUrl: "/api", fetch: fetchMock, onUnauthorized }),
+      );
+
+      await expect(writeUser(client)).rejects.toMatchObject({ status: 401, code: 401 });
+
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledOnce();
+    },
+  );
 
   it("重置密码时只提交摘要，并由服务端确认结果", async () => {
     vi.stubGlobal("isSecureContext", true);

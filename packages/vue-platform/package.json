@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/vue-platform",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "通用 AI 平台的 Vue、Pinia 与 Router 集成",
   "license": "Apache-2.0",
   "repository": {
