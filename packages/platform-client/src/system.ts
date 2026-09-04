@@ -424,6 +424,7 @@ export class PlatformSystemClient {
     return this.http.request<string>("/system/user", {
       method: "POST",
       body: await passwordDigestUserPayload(payload),
+      retryUnauthorized: false,
     });
   }
 
@@ -431,6 +432,7 @@ export class PlatformSystemClient {
     return this.http.request<void>(`/system/user/${encodeId(id)}`, {
       method: "PUT",
       body: await passwordDigestUserPayload(payload),
+      retryUnauthorized: false,
     });
   }
 
@@ -447,6 +449,7 @@ export class PlatformSystemClient {
       method: "POST",
       query: { id },
       body: { newPasswordDigest: await digestPassword(rawNewPassword) },
+      retryUnauthorized: false,
     });
   }
 

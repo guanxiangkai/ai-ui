@@ -103,6 +103,7 @@ describe("PlatformSystemClient", () => {
       const body = call.options.body as Record<string, unknown>;
       expect(body.password).toBeUndefined();
       expect(body.passwordDigest).toMatch(/^[0-9a-f]{40}$/u);
+      expect(call.options.retryUnauthorized).toBe(false);
     }
   });
 
@@ -119,6 +120,7 @@ describe("PlatformSystemClient", () => {
           method: "POST",
           query: { id: "user/1" },
           body: { newPasswordDigest: expect.any(String) },
+          retryUnauthorized: false,
         },
       },
     ]);
