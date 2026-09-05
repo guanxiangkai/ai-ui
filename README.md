@@ -64,6 +64,16 @@ const platform = createPlatformClient({
 
 `platform-client` 直接支持 `responseType`、`credentials` 与单次 `accessToken` 覆盖。JSON 响应始终校验统一信封；`BodyInit`（如 `FormData`、`Blob` 和 `URLSearchParams`）会原样发送，其他请求体会编码为 JSON。消费端如需签名、追踪、加密载荷或自定义响应信封，可通过 `transformRequest` 与 `transformResponse` 注入策略，不应把业务字段写入基础包。
 
+默认只通过 `Authorization` 发送访问令牌。服务端协议明确要求额外携带顶层 `token` 时，才可显式设置 `accessTokenPlacement: "query"` 或 `"json-body"`；两种方式仍会保留 Authorization。query 会暴露在 URL、浏览器网络记录、反向代理和访问日志中，应优先使用 JSON 请求体，并且只可在 TLS 保护的链路中使用。客户端会拒绝空白令牌和调用方已提供的 `token` 字段，且不会修改原查询参数或请求体。
+
+```ts
+const platform = createPlatformClient({
+  baseUrl: "/api",
+  tokenProvider: () => accessToken,
+  accessTokenPlacement: "json-body",
+});
+```
+
 当 HTTP 收到 401，`onUnauthorized` 返回 `true` 时客户端才会重新读取 Token 并仅重试一次。Vue 应用可用 `createPlatformSessionStore` 提供 `handleUnauthorized`：它会去重并发刷新、校验调用方提供的会话过期规则，并通过 `onRefreshFailure` 把失败导航或提示交给消费端实现。
 
 会话 Store 默认只使用内存，不把访问令牌和刷新令牌写入浏览器存储。确需跨页面刷新保留会话时，产品可显式注入 `createBrowserSessionStorage()`，但必须先完成 XSS 威胁建模、严格 CSP 与退出清理；更高安全级别的部署应由服务端使用 `HttpOnly`、`Secure`、`SameSite` Cookie，并配套 CSRF 防护。

@@ -1,5 +1,11 @@
 # @guanxiangkai/platform-client
 
+## 0.3.0
+
+### Minor Changes
+
+- 新增可显式配置的访问令牌 query 与 JSON 请求体承载方式，并保持 Authorization 默认传输。
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,6 @@
 import { PLATFORM_API_CODES, PLATFORM_HTTP_STATUS } from "./constants.js";
 import { PlatformError } from "./error.js";
+import { addAccessTokenToJsonBody, addAccessTokenToQuery, assertAccessToken } from "./token.js";
 import type {
   ApiEnvelope,
   PlatformClientOptions,
@@ -142,7 +143,6 @@ export class PlatformHttpClient implements PlatformRequestClient {
         : undefined;
 
     try {
-      const url = appendQuery(joinUrl(this.options.baseUrl, path), requestOptions.query);
       const responseType = requestOptions.responseType ?? "json";
       let hasRetriedAfterUnauthorized = false;
 
@@ -151,12 +151,14 @@ export class PlatformHttpClient implements PlatformRequestClient {
         new Headers(requestOptions.headers).forEach((value, name) => headers.set(name, value));
         if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
+        let accessToken: string | null | undefined;
         if (requestOptions.accessToken === null) {
           headers.delete("Authorization");
         } else {
-          const token = requestOptions.accessToken ?? (await this.options.tokenProvider?.());
-          if (token !== null && token !== undefined && token.length > 0) {
-            headers.set("Authorization", `Bearer ${token}`);
+          accessToken = requestOptions.accessToken ?? (await this.options.tokenProvider?.());
+          if (accessToken !== null && accessToken !== undefined) {
+            assertAccessToken(accessToken);
+            headers.set("Authorization", `Bearer ${accessToken}`);
           }
         }
 
@@ -165,7 +167,33 @@ export class PlatformHttpClient implements PlatformRequestClient {
           headers.set("X-Tenant-Id", String(tenantId));
         }
 
-        const body = serializeBody(requestOptions.body, headers);
+        const query =
+          accessToken !== null &&
+          accessToken !== undefined &&
+          this.options.accessTokenPlacement === "query"
+            ? addAccessTokenToQuery(requestOptions.query, accessToken)
+            : requestOptions.query;
+        if (
+          accessToken !== null &&
+          accessToken !== undefined &&
+          this.options.accessTokenPlacement === "json-body" &&
+          (requestOptions.method ?? "GET") === "GET"
+        ) {
+          throw new PlatformError(
+            "GET 请求不能使用 JSON 正文令牌，请使用查询参数或自定义传输",
+            0,
+            "TOKEN_BODY_METHOD_UNSUPPORTED",
+            undefined,
+          );
+        }
+        const requestBody =
+          accessToken !== null &&
+          accessToken !== undefined &&
+          this.options.accessTokenPlacement === "json-body"
+            ? addAccessTokenToJsonBody(requestOptions.body, accessToken)
+            : requestOptions.body;
+        const url = appendQuery(joinUrl(this.options.baseUrl, path), query);
+        const body = serializeBody(requestBody, headers);
         const init: RequestInit = {
           method: requestOptions.method ?? "GET",
           headers,
