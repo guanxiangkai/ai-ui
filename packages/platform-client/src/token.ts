@@ -11,7 +11,12 @@ export type AccessTokenPlacement = "query" | "json-body";
  * @throws {PlatformError} 令牌为空或包含空白字符时抛出，避免产生歧义的认证请求。
  */
 export function assertAccessToken(accessToken: string): void {
-  if (typeof accessToken !== "string" || accessToken.length === 0 || /\s/u.test(accessToken)) {
+  if (
+    typeof accessToken !== "string" ||
+    accessToken.length === 0 ||
+    accessToken.length > 16_384 ||
+    /[\s\p{Cc}]/u.test(accessToken)
+  ) {
     throw new PlatformError(
       "访问令牌不能为空且不能包含空白字符",
       0,
@@ -58,13 +63,17 @@ export function addAccessTokenToQuery(
  * @throws {PlatformError} 令牌无效、请求体不是 JSON 对象或原请求体已声明 token 时抛出。
  */
 export function addAccessTokenToJsonBody(
-  body: Readonly<Record<string, unknown>> | null | undefined,
+  body: unknown,
   accessToken: string,
 ): Record<string, unknown> {
   assertAccessToken(accessToken);
   if (body === null || body === undefined) return { token: accessToken };
   const prototype = typeof body === "object" ? Object.getPrototypeOf(body) : undefined;
-  if (Array.isArray(body) || (prototype !== Object.prototype && prototype !== null)) {
+  if (
+    typeof body !== "object" ||
+    Array.isArray(body) ||
+    (prototype !== Object.prototype && prototype !== null)
+  ) {
     throw new PlatformError(
       "JSON 请求体必须是对象，才能添加顶层 token",
       0,

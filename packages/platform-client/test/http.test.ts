@@ -92,9 +92,11 @@ describe("PlatformHttpClient", () => {
   });
 
   it("默认仅通过 Authorization 发送访问令牌", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
     const client = new PlatformHttpClient({
       baseUrl: "/api",
       fetch: fetchMock,
@@ -111,9 +113,11 @@ describe("PlatformHttpClient", () => {
   });
 
   it("显式配置时在 query 添加 token，且不修改输入", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
     const query = { page: 1 };
     const client = new PlatformHttpClient({
       baseUrl: "/api",
@@ -132,9 +136,11 @@ describe("PlatformHttpClient", () => {
   });
 
   it("显式配置时在 JSON 请求体顶层添加 token，且不修改输入", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
     const requestBody = { name: "共享能力" };
     const client = new PlatformHttpClient({
       baseUrl: "/api",
@@ -160,6 +166,22 @@ describe("PlatformHttpClient", () => {
     expect(() => addAccessTokenToJsonBody({ token: "caller-value" }, "access-token")).toThrow(
       "JSON 请求体已包含 token",
     );
+    expect(() => addAccessTokenToQuery({}, "before\u0000after")).toThrow();
+    expect(() => addAccessTokenToJsonBody([], "access-token")).toThrow("必须是对象");
+  });
+
+  it("JSON 正文令牌策略拒绝 GET，避免 Fetch 丢弃身份或产生隐式失败", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      accessTokenPlacement: "json-body",
+      tokenProvider: () => "access-token",
+    });
+    await expect(client.request("/items")).rejects.toMatchObject({
+      code: "TOKEN_BODY_METHOD_UNSUPPORTED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("把业务失败转换为 PlatformError", async () => {
@@ -204,9 +226,11 @@ describe("PlatformHttpClient", () => {
   });
 
   it("匿名请求不添加 Authorization 或额外 token 参数", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
     const client = new PlatformHttpClient({
       baseUrl: "/api",
       fetch: fetchMock,
