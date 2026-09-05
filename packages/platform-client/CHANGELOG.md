@@ -1,5 +1,11 @@
 # @guanxiangkai/platform-client
 
+## 0.3.1
+
+### Patch Changes
+
+- 拒绝请求路径中已有的 token 查询参数，避免访问令牌被旧值或重复值污染。
+
 ## 0.3.0
 
 ### Minor Changes

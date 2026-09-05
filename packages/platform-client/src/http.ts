@@ -46,6 +46,22 @@ function appendQuery(url: string, query: Readonly<Record<string, QueryValue>> | 
   return `${withoutHash}${separator}${serialized}${hash.length === 0 ? "" : `#${hash}`}`;
 }
 
+function assertUrlDoesNotContainAccessToken(url: string): void {
+  const hashIndex = url.indexOf("#");
+  const queryIndex = url.indexOf("?");
+  if (queryIndex === -1 || (hashIndex !== -1 && queryIndex > hashIndex)) return;
+
+  const query = url.slice(queryIndex + 1, hashIndex === -1 ? undefined : hashIndex);
+  if (!new URLSearchParams(query).has("token")) return;
+
+  throw new PlatformError(
+    "请求路径已包含 token 参数，无法安全添加访问令牌",
+    0,
+    "TOKEN_FIELD_CONFLICT",
+    undefined,
+  );
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   if (/^(?:[a-z][a-z\d+.-]*:)?\/\//iu.test(path)) {
     throw new PlatformError(
@@ -167,12 +183,16 @@ export class PlatformHttpClient implements PlatformRequestClient {
           headers.set("X-Tenant-Id", String(tenantId));
         }
 
-        const query =
+        const endpointUrl = joinUrl(this.options.baseUrl, path);
+        let query = requestOptions.query;
+        if (
           accessToken !== null &&
           accessToken !== undefined &&
           this.options.accessTokenPlacement === "query"
-            ? addAccessTokenToQuery(requestOptions.query, accessToken)
-            : requestOptions.query;
+        ) {
+          assertUrlDoesNotContainAccessToken(endpointUrl);
+          query = addAccessTokenToQuery(requestOptions.query, accessToken);
+        }
         if (
           accessToken !== null &&
           accessToken !== undefined &&
@@ -192,7 +212,7 @@ export class PlatformHttpClient implements PlatformRequestClient {
           this.options.accessTokenPlacement === "json-body"
             ? addAccessTokenToJsonBody(requestOptions.body, accessToken)
             : requestOptions.body;
-        const url = appendQuery(joinUrl(this.options.baseUrl, path), query);
+        const url = appendQuery(endpointUrl, query);
         const body = serializeBody(requestBody, headers);
         const init: RequestInit = {
           method: requestOptions.method ?? "GET",
