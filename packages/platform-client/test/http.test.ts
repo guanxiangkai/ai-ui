@@ -135,6 +135,26 @@ describe("PlatformHttpClient", () => {
     );
   });
 
+  it.each([
+    "/items?token=caller-value",
+    "/items?to%6ben=caller-value",
+    "/items?token=caller-value&token=duplicate-value",
+  ])("拒绝路径中已有或编码的 token 参数", async (path) => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "access-token",
+      accessTokenPlacement: "query",
+    });
+
+    await expect(client.request(path)).rejects.toMatchObject({
+      code: "TOKEN_FIELD_CONFLICT",
+      message: "请求路径已包含 token 参数，无法安全添加访问令牌",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("显式配置时在 JSON 请求体顶层添加 token，且不修改输入", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -333,10 +353,17 @@ describe("PlatformHttpClient", () => {
       },
     });
 
-    await client.request("/protected", { query: { page: 1 } });
+    await client.request("/protected?scope=exam", { query: { page: 1 } });
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/protected?page=1&token=expired-token");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/protected?page=1&token=fresh-token");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/protected?scope=exam&page=1&token=expired-token",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/protected?scope=exam&page=1&token=fresh-token");
+    for (const [url] of fetchMock.mock.calls) {
+      expect(
+        new URL(url as string, "https://platform.example").searchParams.getAll("token"),
+      ).toHaveLength(1);
+    }
   });
 
   it("401 重试时用新令牌重新计算 JSON 请求体", async () => {
