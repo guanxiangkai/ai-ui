@@ -162,6 +162,7 @@ import type { RoleQuery, RoleSummary, SystemPage } from "@guanxiangkai/platform-
 import PlatformPager from "./PlatformPager.vue";
 import PlatformRoleFormDialog from "./PlatformRoleFormDialog.vue";
 import PlatformRolePermissionDialog from "./PlatformRolePermissionDialog.vue";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -178,7 +179,8 @@ const canEdit = can("system:role:edit");
 const canDelete = can("system:role:delete");
 const canAssignPermission = can("system:role:query") && can("system:role:assignPermission");
 
-const loading = ref(false);
+const listRequest = useLatestRequest();
+const loading = listRequest.loading;
 const loadError = ref("");
 const statusLoadingId = ref("");
 const formVisible = ref(false);
@@ -207,22 +209,21 @@ function asRole(row: unknown): RoleSummary {
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listRoles(query);
-    page.records = result?.records ?? [];
-    page.total = Number(result?.total ?? 0);
-    page.pageNum = result?.pageNum;
-    page.pageSize = result?.pageSize;
-    page.pages = result?.pages;
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, "角色列表加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.listRoles({ ...query }), {
+    onSuccess: (result) => {
+      page.records = result?.records ?? [];
+      page.total = Number(result?.total ?? 0);
+      page.pageNum = result?.pageNum;
+      page.pageSize = result?.pageSize;
+      page.pages = result?.pages;
+    },
+    onError: (error) => {
+      page.records = [];
+      page.total = 0;
+      loadError.value = systemErrorMessage(error, "角色列表加载失败");
+    },
+  });
 }
 
 function search() {

@@ -63,8 +63,12 @@ export interface AuthEndpointOptions {
 export interface AuthClient {
   /** 使用账号密码创建会话。 */
   login(request: LoginRequest): Promise<AuthSession>;
-  /** 注销当前访问令牌。 */
-  logout(): Promise<void>;
+  /**
+   * 注销指定访问令牌；省略时由底层客户端按当前令牌提供器解析。
+   *
+   * @param accessToken 需要注销的访问令牌。
+   */
+  logout(accessToken?: string): Promise<void>;
   /** 使用刷新令牌换取新会话。 */
   refresh(refreshToken: string): Promise<AuthSession>;
 }
@@ -127,9 +131,13 @@ export class PlatformAuthClient implements AuthClient {
     });
   }
 
-  /** 注销当前访问令牌。 */
-  logout(): Promise<void> {
-    return this.http.request<void>(this.endpoints.logout, { method: "POST" });
+  /** 注销指定访问令牌；省略时使用底层客户端当前令牌。 */
+  logout(accessToken?: string): Promise<void> {
+    return this.http.request<void>(this.endpoints.logout, {
+      method: "POST",
+      ...(accessToken === undefined ? {} : { accessToken }),
+      retryUnauthorized: false,
+    });
   }
 
   /** 使用刷新令牌换取新会话。 */

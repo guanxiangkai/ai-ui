@@ -330,6 +330,158 @@ describe("PlatformHttpClient", () => {
     );
   });
 
+  it("401 恢复后重新构造令牌、租户和请求转换结果", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+          status: 401,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: { recovered: true } }), {
+          status: 200,
+        }),
+      );
+    let accessToken = "expired-token";
+    let tenantId = "tenant-before";
+    let traceId = "trace-before";
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => accessToken,
+      tenantProvider: () => tenantId,
+      transformRequest: ({ headers }) => headers.set("X-Trace-Id", traceId),
+      onUnauthorized: () => {
+        accessToken = "fresh-token";
+        tenantId = "tenant-after";
+        traceId = "trace-after";
+        return true;
+      },
+    });
+
+    await expect(
+      client.request("/protected", { method: "POST", body: { state: "pending" } }),
+    ).resolves.toEqual({ recovered: true });
+
+    const firstHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    const secondHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(firstHeaders.get("Authorization")).toBe("Bearer expired-token");
+    expect(firstHeaders.get("X-Tenant-Id")).toBe("tenant-before");
+    expect(firstHeaders.get("X-Trace-Id")).toBe("trace-before");
+    expect(secondHeaders.get("Authorization")).toBe("Bearer fresh-token");
+    expect(secondHeaders.get("X-Tenant-Id")).toBe("tenant-after");
+    expect(secondHeaders.get("X-Trace-Id")).toBe("trace-after");
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"state":"pending"}');
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe('{"state":"pending"}');
+  });
+
+  it("收到 401 时不恢复或重放 ReadableStream 请求体", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+        status: 401,
+      }),
+    );
+    const onUnauthorized = vi.fn(() => true);
+    const client = new PlatformHttpClient({ baseUrl: "/api", fetch: fetchMock, onUnauthorized });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1]));
+        controller.close();
+      },
+    });
+
+    await expect(client.request("/upload", { method: "POST", body: stream })).rejects.toMatchObject(
+      {
+        status: 401,
+        code: 401,
+      },
+    );
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("转换钩子生成流式正文时也不恢复或重放", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+        status: 401,
+      }),
+    );
+    const onUnauthorized = vi.fn(() => true);
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      onUnauthorized,
+      transformRequest: ({ init }) => {
+        init.body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1]));
+            controller.close();
+          },
+        });
+      },
+    });
+
+    await expect(
+      client.request("/upload", { method: "POST", body: "source" }),
+    ).rejects.toMatchObject({
+      status: 401,
+      code: 401,
+    });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("在等待令牌提供器时取消请求，不再发送 Fetch", async () => {
+    let resolveToken: ((value: string) => void) | undefined;
+    const token = new Promise<string>((resolve) => {
+      resolveToken = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>();
+    const controller = new AbortController();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => token,
+    });
+
+    const request = client.request("/protected", { signal: controller.signal });
+    controller.abort("cancelled while loading token");
+
+    await expect(request).rejects.toMatchObject({ code: "REQUEST_ABORTED" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    resolveToken?.("late-token");
+  });
+
+  it("在等待请求转换时取消请求，不再发送 Fetch", async () => {
+    let resolveTransform: (() => void) | undefined;
+    const transformStarted = new Promise<void>((resolve) => {
+      resolveTransform = resolve;
+    });
+    let signalTransformStarted: (() => void) | undefined;
+    const transformStartedSignal = new Promise<void>((resolve) => {
+      signalTransformStarted = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>();
+    const controller = new AbortController();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      transformRequest: () => {
+        signalTransformStarted?.();
+        return transformStarted;
+      },
+    });
+
+    const request = client.request("/protected", { signal: controller.signal });
+    await transformStartedSignal;
+    controller.abort("cancelled while transforming request");
+
+    await expect(request).rejects.toMatchObject({ code: "REQUEST_ABORTED" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    resolveTransform?.();
+  });
+
   it("401 重试时用新令牌重新计算 query", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

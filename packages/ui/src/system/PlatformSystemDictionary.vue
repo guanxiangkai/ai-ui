@@ -177,6 +177,7 @@
     :title="`${itemTarget?.dictLabel || ''} · 字典项`"
     size="760px"
     append-to-body
+    @closed="closeItems"
   >
     <section class="system-drawer-toolbar">
       <div>
@@ -319,6 +320,7 @@ import type {
   SystemPage,
 } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -339,10 +341,14 @@ const canEditItem = can("system:dictItem:query") && can("system:dictItem:edit");
 const canToggleItem = can("system:dictItem:edit");
 const canDeleteItem = can("system:dictItem:delete");
 
-const loading = ref(false);
-const detailLoading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const itemsRequest = useLatestRequest();
+const itemDetailRequest = useLatestRequest();
+const loading = listRequest.loading;
+const detailLoading = detailRequest.loading;
 const submitting = ref(false);
-const itemsLoading = ref(false);
+const itemsLoading = itemsRequest.loading;
 const itemSubmitting = ref(false);
 const loadError = ref("");
 const statusLoadingId = ref("");
@@ -413,19 +419,18 @@ function asItem(value: unknown) {
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listDictionaries(query);
-    page.records = result?.records ?? [];
-    page.total = Number(result?.total ?? 0);
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, "字典列表加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.listDictionaries({ ...query }), {
+    onSuccess: (result) => {
+      page.records = result?.records ?? [];
+      page.total = Number(result?.total ?? 0);
+    },
+    onError: (error) => {
+      page.records = [];
+      page.total = 0;
+      loadError.value = systemErrorMessage(error, "字典列表加载失败");
+    },
+  });
 }
 
 function search() {
@@ -457,6 +462,7 @@ function changePage(pageNum: number) {
 }
 
 function resetDictForm() {
+  detailRequest.invalidate();
   activeDict.value = undefined;
   Object.assign(dictForm, {
     dictType: "",
@@ -477,22 +483,21 @@ async function openEdit(dict: SystemDictionary) {
   resetDictForm();
   activeDict.value = dict;
   dictVisible.value = true;
-  detailLoading.value = true;
-  try {
-    const detail = await props.client.getDictionary(dict.id);
-    Object.assign(dictForm, {
-      dictType: detail.dictType,
-      dictLabel: detail.dictLabel,
-      dictValue: detail.dictValue,
-      sortOrder: detail.sortOrder ?? 0,
-      remark: detail.remark || "",
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "字典详情加载失败"));
-    dictVisible.value = false;
-  } finally {
-    detailLoading.value = false;
-  }
+  await detailRequest.run(() => props.client.getDictionary(dict.id), {
+    onSuccess: (detail) => {
+      Object.assign(dictForm, {
+        dictType: detail.dictType,
+        dictLabel: detail.dictLabel,
+        dictValue: detail.dictValue,
+        sortOrder: detail.sortOrder ?? 0,
+        remark: detail.remark || "",
+      });
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "字典详情加载失败"));
+      dictVisible.value = false;
+    },
+  });
 }
 
 async function submitDict() {
@@ -571,24 +576,35 @@ async function openItems(dict: SystemDictionary) {
 }
 
 async function loadItems() {
-  if (!itemTarget.value) {
+  const target = itemTarget.value;
+  if (!target) {
     return;
   }
-  itemsLoading.value = true;
-  try {
-    const result = await props.client.listDictionaryItems({
-      ...itemQuery,
-      dictId: itemTarget.value.id,
-    });
-    itemPage.records = result?.records ?? [];
-    itemPage.total = Number(result?.total ?? 0);
-  } catch (error) {
-    itemPage.records = [];
-    itemPage.total = 0;
-    ElMessage.error(systemErrorMessage(error, "字典项加载失败"));
-  } finally {
-    itemsLoading.value = false;
-  }
+  await itemsRequest.run(
+    () =>
+      props.client.listDictionaryItems({
+        ...itemQuery,
+        dictId: target.id,
+      }),
+    {
+      onSuccess: (result) => {
+        itemPage.records = result?.records ?? [];
+        itemPage.total = Number(result?.total ?? 0);
+      },
+      onError: (error) => {
+        itemPage.records = [];
+        itemPage.total = 0;
+        ElMessage.error(systemErrorMessage(error, "字典项加载失败"));
+      },
+    },
+  );
+}
+
+function closeItems() {
+  itemsRequest.invalidate();
+  itemTarget.value = undefined;
+  itemPage.records = [];
+  itemPage.total = 0;
 }
 
 function changeItemPage(pageNum: number) {
@@ -597,6 +613,7 @@ function changeItemPage(pageNum: number) {
 }
 
 function resetItemForm() {
+  itemDetailRequest.invalidate();
   activeItem.value = undefined;
   Object.assign(itemForm, {
     itemLabel: "",
@@ -620,22 +637,24 @@ async function openEditItem(item: SystemDictionaryItem) {
   resetItemForm();
   activeItem.value = item;
   itemFormVisible.value = true;
-  try {
-    const detail = await props.client.getDictionaryItem(item.id);
-    Object.assign(itemForm, {
-      itemLabel: detail.itemLabel,
-      itemValue: detail.itemValue,
-      itemStyle: detail.itemStyle || "",
-      itemColor: detail.itemColor || "",
-      itemSelected: Boolean(detail.itemSelected),
-      enabled: detail.enabled !== false,
-      sortOrder: detail.sortOrder ?? 0,
-      remark: detail.remark || "",
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "字典项详情加载失败"));
-    itemFormVisible.value = false;
-  }
+  await itemDetailRequest.run(() => props.client.getDictionaryItem(item.id), {
+    onSuccess: (detail) => {
+      Object.assign(itemForm, {
+        itemLabel: detail.itemLabel,
+        itemValue: detail.itemValue,
+        itemStyle: detail.itemStyle || "",
+        itemColor: detail.itemColor || "",
+        itemSelected: Boolean(detail.itemSelected),
+        enabled: detail.enabled !== false,
+        sortOrder: detail.sortOrder ?? 0,
+        remark: detail.remark || "",
+      });
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "字典项详情加载失败"));
+      itemFormVisible.value = false;
+    },
+  });
 }
 
 async function submitItem() {

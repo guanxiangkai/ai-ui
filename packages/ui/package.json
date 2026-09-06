@@ -39,6 +39,7 @@
     "@guanxiangkai/platform-client": "workspace:^"
   },
   "devDependencies": {
+    "@guanxiangkai/build-config": "workspace:^",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/compiler-sfc": "catalog:",
     "@vue/language-core": "catalog:",
@@ -46,7 +47,7 @@
     "element-plus": "catalog:",
     "happy-dom": "catalog:",
     "typescript": "catalog:",
-    "vite-plugin-dts": "catalog:",
+    "unplugin-dts": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:"

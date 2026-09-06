@@ -1,6 +1,6 @@
 import type { AuthSession, LoginRequest, PlatformClient } from "@guanxiangkai/platform-client";
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, onScopeDispose, ref, watch } from "vue";
 
 import { createMemorySessionStorage, type PlatformSessionStorage } from "./storage.js";
 
@@ -14,9 +14,13 @@ export interface PlatformSessionStoreOptions {
    * 会话存储策略；默认仅驻留内存。产品只有在完成 XSS 威胁建模后才应显式选择浏览器存储。
    */
   storage?: PlatformSessionStorage<AuthSession>;
-  /** 判断会话是否已过期；过期会话不会作为已认证身份保留。 */
+  /**
+   * 判断会话是否已过期；初始化和认证状态计算会据此拒绝过期身份。Store 仅在浏览器按 expiresAtMs
+   * 单次唤醒以重新计算认证状态，SSR 仅在渲染时计算；两者都不会清除会话或自动登出。自定义实现若依赖外部时钟，
+   * 该时钟应是 Vue 响应式依赖。
+   */
   isSessionExpired?: (session: AuthSession) => boolean;
-  /** 刷新失败后的产品回调，例如跳转登录页或展示提示。 */
+  /** 刷新当前会话失败后的产品回调，例如跳转登录页或展示提示。已被替代的刷新不会调用。 */
   onRefreshFailure?: (error: unknown) => void | Promise<void>;
 }
 
@@ -27,6 +31,7 @@ export interface PlatformSessionStoreOptions {
  * @returns 可在 Pinia 上实例化的 Store 定义。
  */
 export function createPlatformSessionStore(options: PlatformSessionStoreOptions) {
+  const maxTimeoutMs = 2_147_483_647;
   const isSessionExpired =
     options.isSessionExpired ??
     ((session: AuthSession) =>
@@ -48,62 +53,145 @@ export function createPlatformSessionStore(options: PlatformSessionStoreOptions)
     if (persistedSession !== null && session.value === null) storage.clear();
     else if (session.value !== null && session.value !== persistedSession)
       storage.write(session.value);
-    const pending = ref(false);
-    const isAuthenticated = computed(
-      () =>
+    const pendingOperations = ref(0);
+    const pending = computed(() => pendingOperations.value > 0);
+    const expiryTick = ref(0);
+    const isAuthenticated = computed(() => {
+      void expiryTick.value;
+      return (
         (session.value?.accessToken.length ?? 0) > 0 &&
-        (session.value === null || !isSessionExpired(session.value)),
-    );
+        (session.value === null || !isSessionExpired(session.value))
+      );
+    });
     const accessToken = computed(() => session.value?.accessToken ?? null);
-    let refreshOperation: Promise<AuthSession> | null = null;
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
+    function clearExpiryTimer(): void {
+      if (expiryTimer === undefined) return;
+      clearTimeout(expiryTimer);
+      expiryTimer = undefined;
+    }
+
+    function scheduleExpiryTimer(nextSession: AuthSession | null): void {
+      clearExpiryTimer();
+      if (typeof window === "undefined") return;
+      const expiresAtMs = nextSession?.expiresAtMs;
+      if (expiresAtMs === undefined) return;
+
+      const remainingMs = expiresAtMs - Date.now();
+      if (remainingMs <= 0) {
+        expiryTick.value += 1;
+        return;
+      }
+
+      expiryTimer = setTimeout(
+        () => {
+          expiryTimer = undefined;
+          if (session.value !== nextSession) return;
+          if (expiresAtMs > Date.now()) {
+            scheduleExpiryTimer(nextSession);
+            return;
+          }
+          expiryTick.value += 1;
+        },
+        Math.min(remainingMs, maxTimeoutMs),
+      );
+    }
+
+    watch(session, scheduleExpiryTimer, { immediate: true, flush: "sync" });
+    onScopeDispose(clearExpiryTimer);
+
+    // 任何会话替换都会推进代次，旧异步操作只能返回自身结果，不能再改变当前身份。
+    let sessionGeneration = 0;
+    let activeLoginGeneration: number | null = null;
+    let refreshOperation: { generation: number; promise: Promise<AuthSession> } | null = null;
+
+    function beginPending(): () => void {
+      pendingOperations.value += 1;
+      let finished = false;
+      return () => {
+        if (finished) return;
+        finished = true;
+        pendingOperations.value -= 1;
+      };
+    }
+
+    function advanceSessionGeneration(): number {
+      sessionGeneration += 1;
+      return sessionGeneration;
+    }
+
+    function isCurrentLoginPending(): boolean {
+      return activeLoginGeneration === sessionGeneration;
+    }
+
+    /** 替换当前会话并使此前开始的登录、刷新或注销结果失效。 */
     function replace(nextSession: AuthSession | null): void {
-      session.value = nextSession;
+      advanceSessionGeneration();
       if (nextSession === null) storage.clear();
       else storage.write(nextSession);
+      session.value = nextSession;
     }
 
     /** 使用平台认证接口登录并保存新会话。 */
     async function login(request: LoginRequest): Promise<AuthSession> {
-      pending.value = true;
+      const generation = advanceSessionGeneration();
+      activeLoginGeneration = generation;
+      const finishPending = beginPending();
       try {
         const nextSession = normalizeSession(await options.client.auth.login(request));
-        replace(nextSession);
+        if (generation === sessionGeneration) replace(nextSession);
         return nextSession;
       } finally {
-        pending.value = false;
+        if (activeLoginGeneration === generation) activeLoginGeneration = null;
+        finishPending();
       }
     }
 
     /** 使用当前刷新令牌更新并保存会话。 */
     async function refresh(): Promise<AuthSession> {
-      if (refreshOperation !== null) return refreshOperation;
+      if (isCurrentLoginPending()) {
+        throw new Error("当前会话正在登录，不能刷新");
+      }
+      const generation = sessionGeneration;
+      if (refreshOperation?.generation === generation) return refreshOperation.promise;
 
       const refreshToken = session.value?.refreshToken;
       if (refreshToken === undefined || refreshToken.length === 0) {
         throw new Error("当前会话没有可用的刷新令牌");
       }
 
-      pending.value = true;
-      refreshOperation = options.client.auth
-        .refresh(refreshToken)
-        .then((receivedSession) => {
+      const finishPending = beginPending();
+      const operation = (async () => {
+        try {
+          const receivedSession = await options.client.auth.refresh(refreshToken);
+          if (generation !== sessionGeneration) {
+            throw new Error("当前会话已被替代，忽略过期刷新结果");
+          }
           const nextSession = normalizeSession(receivedSession);
           if (isSessionExpired(nextSession)) {
             throw new Error("刷新接口返回的会话已过期");
           }
           replace(nextSession);
           return nextSession;
-        })
-        .catch(async (error: unknown) => {
-          await options.onRefreshFailure?.(error);
+        } catch (error) {
+          if (generation === sessionGeneration) await options.onRefreshFailure?.(error);
           throw error;
-        })
-        .finally(() => {
-          pending.value = false;
-          refreshOperation = null;
-        });
-      return refreshOperation;
+        } finally {
+          finishPending();
+        }
+      })();
+      const currentOperation = { generation, promise: operation };
+      refreshOperation = currentOperation;
+      void operation.then(
+        () => {
+          if (refreshOperation === currentOperation) refreshOperation = null;
+        },
+        () => {
+          if (refreshOperation === currentOperation) refreshOperation = null;
+        },
+      );
+      return operation;
     }
 
     /**
@@ -112,23 +200,28 @@ export function createPlatformSessionStore(options: PlatformSessionStoreOptions)
      * @returns 会话刷新成功时返回 true，供 HTTP 客户端仅重试一次原请求。
      */
     async function handleUnauthorized(): Promise<boolean> {
+      if (isCurrentLoginPending()) return false;
+      const generation = sessionGeneration;
       try {
         await refresh();
-        return true;
+        return sessionGeneration === generation + 1;
       } catch {
-        replace(null);
+        if (!isCurrentLoginPending() && generation === sessionGeneration) replace(null);
         return false;
       }
     }
 
-    /** 注销服务端会话；即使服务端失败也清除本地身份。 */
+    /** 注销时立即清除本地身份；服务端请求结束不会影响之后建立的新会话。 */
     async function logout(): Promise<void> {
-      pending.value = true;
+      const sessionToLogout = session.value;
+      replace(null);
+      if (sessionToLogout === null) return;
+
+      const finishPending = beginPending();
       try {
-        if (session.value !== null) await options.client.auth.logout();
+        await options.client.auth.logout(sessionToLogout.accessToken);
       } finally {
-        replace(null);
-        pending.value = false;
+        finishPending();
       }
     }
 

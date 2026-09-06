@@ -1,5 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { publint } from "publint";
+import { formatMessage } from "publint/utils";
 
 const expectedPackages = new Set([
   "@guanxiangkai/platform-client",
@@ -42,6 +44,17 @@ for (const entry of entries) {
   if (!Array.isArray(manifest.files) || !manifest.files.includes("dist")) {
     failures.push(`${manifest.name}: files 必须只显式纳入 dist 等发布文件`);
   }
+
+  // 由第三方校验实际打包后的 exports、类型声明和模块格式，避免只验证 manifest 而漏掉缺失入口。
+  const { messages, pkg } = await publint({
+    pkgDir: resolve(packagesDirectory, entry.name),
+    pack: "pnpm",
+    strict: true,
+    level: "error",
+  });
+  for (const message of messages) {
+    failures.push(`${manifest.name}: ${formatMessage(message, pkg)}`);
+  }
 }
 
 for (const missingPackage of expectedPackages) {
@@ -52,4 +65,4 @@ if (failures.length > 0) {
   throw new Error(`发布元数据检查失败：\n- ${failures.join("\n- ")}`);
 }
 
-console.log("四个软件包的名称、语义化版本、Apache-2.0 许可证和公开 Registry 元数据检查通过。");
+console.log("四个软件包的公开元数据、实际打包入口、类型声明与模块格式检查通过。");

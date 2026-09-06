@@ -166,6 +166,7 @@
     width="760px"
     append-to-body
     :close-on-click-modal="false"
+    @closed="closeTemplateDialog"
   >
     <el-form
       ref="templateFormRef"
@@ -312,6 +313,7 @@ import type {
   SystemPage,
 } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -339,12 +341,15 @@ const dataTypes: ImportDataType[] = [
 ];
 const templates = reactive<SystemPage<SystemImportTemplate>>({ records: [], total: 0 });
 const mappings = reactive<SystemPage<SystemImportMapping>>({ records: [], total: 0 });
+const listRequest = useLatestRequest();
+const mappingRequest = useLatestRequest();
+const templateDetailRequest = useLatestRequest();
 const selectedTemplate = ref<SystemImportTemplate>();
 const pageNum = ref(1);
 const pageSize = 20;
 const query = reactive({ templateName: "", templateModule: "" });
-const loading = ref(false);
-const mappingLoading = ref(false);
+const loading = listRequest.loading;
+const mappingLoading = mappingRequest.loading;
 const submitting = ref(false);
 const loadError = ref("");
 const templateDialog = ref(false);
@@ -459,52 +464,53 @@ function changePage(page: number) {
   void loadTemplates();
 }
 async function loadTemplates() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listImportTemplates({
-      pageNum: pageNum.value,
-      pageSize,
-      templateName: query.templateName,
-      templateModule: query.templateModule,
-    });
-    templates.records = result.records ?? [];
-    templates.total = Number(result.total ?? 0);
-    const next =
-      templates.records.find((item) => item.id === selectedTemplate.value?.id) ??
-      templates.records[0];
-    await selectTemplate(next);
-  } catch (error) {
-    templates.records = [];
-    templates.total = 0;
-    mappings.records = [];
-    mappings.total = 0;
-    loadError.value = systemErrorMessage(error, "导入模板加载失败");
-  } finally {
-    loading.value = false;
-  }
+  const request = {
+    pageNum: pageNum.value,
+    pageSize,
+    templateName: query.templateName,
+    templateModule: query.templateModule,
+  };
+  await listRequest.run(() => props.client.listImportTemplates(request), {
+    onSuccess: (result) => {
+      templates.records = result.records ?? [];
+      templates.total = Number(result.total ?? 0);
+      const next =
+        templates.records.find((item) => item.id === selectedTemplate.value?.id) ??
+        templates.records[0];
+      void selectTemplate(next);
+    },
+    onError: (error) => {
+      templates.records = [];
+      templates.total = 0;
+      mappings.records = [];
+      mappings.total = 0;
+      mappingRequest.invalidate();
+      loadError.value = systemErrorMessage(error, "导入模板加载失败");
+    },
+  });
 }
 async function selectTemplate(value?: SystemImportTemplate | null) {
+  mappingRequest.invalidate();
   selectedTemplate.value = value ?? undefined;
   mappings.records = [];
   mappings.total = 0;
   if (!value) return;
-  mappingLoading.value = true;
-  try {
-    const result = await props.client.listImportMappings({
-      pageNum: 1,
-      pageSize: 500,
-      templateId: value.id,
-    });
-    mappings.records = result.records ?? [];
-    mappings.total = Number(result.total ?? 0);
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "字段映射加载失败"));
-  } finally {
-    mappingLoading.value = false;
-  }
+  const request = {
+    pageNum: 1,
+    pageSize: 500,
+    templateId: value.id,
+  };
+  await mappingRequest.run(() => props.client.listImportMappings(request), {
+    onSuccess: (result) => {
+      mappings.records = result.records ?? [];
+      mappings.total = Number(result.total ?? 0);
+    },
+    onError: (error) => ElMessage.error(systemErrorMessage(error, "字段映射加载失败")),
+  });
 }
 async function openTemplate(item?: SystemImportTemplate) {
+  templateDetailRequest.invalidate();
   templateId.value = item?.id ?? "";
   const defaults = {
     templateName: "",
@@ -525,28 +531,33 @@ async function openTemplate(item?: SystemImportTemplate) {
   Object.assign(templateForm, defaults);
   templateDialog.value = true;
   if (!item) return;
-  try {
-    const detail = await props.client.getImportTemplate(item.id);
-    Object.assign(templateForm, {
-      templateName: detail.templateName,
-      templateCode: detail.templateCode,
-      templateModule: detail.templateModule,
-      fileType: detail.fileType,
-      fileNamePatterns: detail.fileNamePatterns?.join(", ") ?? "",
-      sheetNames: detail.sheetNames?.join(", ") ?? "",
-      targetSchema: detail.targetSchema ?? "public",
-      targetTable: detail.targetTable ?? "",
-      handlerKey: detail.handlerKey ?? "",
-      writeMode: detail.writeMode ?? "INSERT",
-      headerRowIndex: detail.headerRowIndex ?? 0,
-      batchSize: detail.batchSize ?? 500,
-      customImportEnabled: detail.customImportEnabled !== false,
-      remark: detail.remark ?? "",
-    });
-  } catch (error) {
-    templateDialog.value = false;
-    ElMessage.error(systemErrorMessage(error, "导入模板详情加载失败"));
-  }
+  await templateDetailRequest.run(() => props.client.getImportTemplate(item.id), {
+    onSuccess: (detail) => {
+      Object.assign(templateForm, {
+        templateName: detail.templateName,
+        templateCode: detail.templateCode,
+        templateModule: detail.templateModule,
+        fileType: detail.fileType,
+        fileNamePatterns: detail.fileNamePatterns?.join(", ") ?? "",
+        sheetNames: detail.sheetNames?.join(", ") ?? "",
+        targetSchema: detail.targetSchema ?? "public",
+        targetTable: detail.targetTable ?? "",
+        handlerKey: detail.handlerKey ?? "",
+        writeMode: detail.writeMode ?? "INSERT",
+        headerRowIndex: detail.headerRowIndex ?? 0,
+        batchSize: detail.batchSize ?? 500,
+        customImportEnabled: detail.customImportEnabled !== false,
+        remark: detail.remark ?? "",
+      });
+    },
+    onError: (error) => {
+      templateDialog.value = false;
+      ElMessage.error(systemErrorMessage(error, "导入模板详情加载失败"));
+    },
+  });
+}
+function closeTemplateDialog() {
+  templateDetailRequest.invalidate();
 }
 function openMapping(item?: SystemImportMapping) {
   mappingId.value = item?.id ?? "";

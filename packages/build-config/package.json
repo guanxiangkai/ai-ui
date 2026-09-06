@@ -35,6 +35,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "vite-plus": "^0.2.8"
+    "vite-plus": "^0.3.0"
   }
 }

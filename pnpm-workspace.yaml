@@ -2,23 +2,24 @@ packages:
   - packages/*
 
 catalog:
-  "@changesets/cli": 2.31.1
+  "@changesets/cli": 3.0.2
   "@types/node": 24.13.3
   "@element-plus/icons-vue": 2.3.2
   "@vitejs/plugin-vue": 6.0.8
-  "@vue/compiler-sfc": 3.5.41
-  "@vue/language-core": 3.3.9
-  "@vue/test-utils": 2.4.11
-  element-plus: 2.14.4
-  happy-dom: 20.11.2
-  pinia: 4.0.2
+  "@vue/compiler-sfc": 3.5.42
+  "@vue/language-core": 3.3.11
+  "@vue/test-utils": 2.5.0
+  element-plus: 2.14.5
+  happy-dom: 20.14.0
+  pinia: 4.0.3
+  publint: 0.3.24
   typescript: 6.0.3
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.8
-  vite-plus: 0.2.8
-  vite-plugin-dts: 5.0.3
-  vitest: 4.1.10
-  vue: 3.5.41
-  vue-router: 5.2.0
+  vite: npm:@voidzero-dev/vite-plus-core@0.3.0
+  vite-plus: 0.3.0
+  unplugin-dts: 1.1.0
+  vitest: 4.1.11
+  vue: 3.5.42
+  vue-router: 5.3.1
 
 # 新发布依赖至少隔离 24 小时；显式严格模式禁止在范围内没有成熟版本时静默回退。
 minimumReleaseAge: 1440

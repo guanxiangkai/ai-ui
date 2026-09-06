@@ -275,6 +275,7 @@
     v-model="rolesVisible"
     title="分配账户角色"
     width="520px"
+    @closed="closeRoles"
     align-center
     append-to-body
     :close-on-click-modal="false"
@@ -344,6 +345,7 @@ import type {
 } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import type { SystemViewProps } from "./system-types";
 
 interface LookupOption {
@@ -379,10 +381,15 @@ const canAssignInitialRole = can("system:user:assignRole") && canListRoles;
 const canAssignRole = canAssignInitialRole && canQuery;
 const canResetPassword = can("system:user:resetPwd");
 
-const loading = ref(false);
-const detailLoading = ref(false);
+const listRequest = useLatestRequest();
+const lookupsRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const rolesRequest = useLatestRequest();
+const loading = listRequest.loading;
+const detailLoading = detailRequest.loading;
 const submitting = ref(false);
-const rolesLoading = ref(false);
+const rolesSaving = ref(false);
+const rolesLoading = computed(() => rolesRequest.loading.value || rolesSaving.value);
 const loadError = ref("");
 const statusLoadingId = ref("");
 const formVisible = ref(false);
@@ -446,44 +453,47 @@ function asUser(value: unknown) {
 }
 
 async function loadLookups() {
-  try {
-    const [roles, posts] = await Promise.all([
-      canListRoles
-        ? props.client.listEntities<RoleLookup>("/system/role", { pageNum: 1, pageSize: 100 })
-        : Promise.resolve<SystemPage<RoleLookup>>({ records: [], total: 0 }),
-      canListPosts
-        ? props.client.listEntities<PostLookup>("/system/post", { pageNum: 1, pageSize: 100 })
-        : Promise.resolve<SystemPage<PostLookup>>({ records: [], total: 0 }),
-    ]);
-    roleOptions.value = (roles?.records ?? []).map((role) => ({
-      id: role.id,
-      code: role.roleCode,
-      label: role.roleName,
-    }));
-    postOptions.value = (posts?.records ?? []).map((post) => ({
-      id: post.id,
-      code: post.postCode,
-      label: post.postName,
-    }));
-  } catch (error) {
-    ElMessage.warning(systemErrorMessage(error, "角色或岗位选项加载失败"));
-  }
+  await lookupsRequest.run(
+    () =>
+      Promise.all([
+        canListRoles
+          ? props.client.listEntities<RoleLookup>("/system/role", { pageNum: 1, pageSize: 100 })
+          : Promise.resolve<SystemPage<RoleLookup>>({ records: [], total: 0 }),
+        canListPosts
+          ? props.client.listEntities<PostLookup>("/system/post", { pageNum: 1, pageSize: 100 })
+          : Promise.resolve<SystemPage<PostLookup>>({ records: [], total: 0 }),
+      ]),
+    {
+      onSuccess: ([roles, posts]) => {
+        roleOptions.value = (roles?.records ?? []).map((role) => ({
+          id: role.id,
+          code: role.roleCode,
+          label: role.roleName,
+        }));
+        postOptions.value = (posts?.records ?? []).map((post) => ({
+          id: post.id,
+          code: post.postCode,
+          label: post.postName,
+        }));
+      },
+      onError: (error) => ElMessage.warning(systemErrorMessage(error, "角色或岗位选项加载失败")),
+    },
+  );
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listUsers(query);
-    page.records = result?.records ?? [];
-    page.total = Number(result?.total ?? 0);
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, "账户列表加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.listUsers({ ...query }), {
+    onSuccess: (result) => {
+      page.records = result?.records ?? [];
+      page.total = Number(result?.total ?? 0);
+    },
+    onError: (error) => {
+      page.records = [];
+      page.total = 0;
+      loadError.value = systemErrorMessage(error, "账户列表加载失败");
+    },
+  });
 }
 
 function search() {
@@ -515,6 +525,7 @@ function changePage(pageNum: number) {
 }
 
 function resetForm() {
+  detailRequest.invalidate();
   activeUser.value = undefined;
   Object.assign(form, {
     username: "",
@@ -543,32 +554,31 @@ async function openEdit(user: UserSummary) {
   resetForm();
   activeUser.value = user;
   formVisible.value = true;
-  detailLoading.value = true;
-  try {
-    const detail = await props.client.getUser(user.id);
-    Object.assign(form, {
-      username: detail.username || "",
-      password: "",
-      realName: detail.realName || "",
-      nickname: detail.nickname || "",
-      email: detail.email || "",
-      phone: "",
-      clearPhone: false,
-      gender: Number(detail.gender ?? 0),
-      userType: detail.userType === "ADMIN" ? "ADMIN" : "USER",
-      roleCodes: [],
-      postCodes: (detail.posts ?? [])
-        .map((post) => post.postCode || post.roleCode)
-        .filter((code): code is string => Boolean(code)),
-      sortOrder: Number(detail.sortOrder ?? 0),
-      remark: detail.remark || "",
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "账户详情加载失败"));
-    formVisible.value = false;
-  } finally {
-    detailLoading.value = false;
-  }
+  await detailRequest.run(() => props.client.getUser(user.id), {
+    onSuccess: (detail) => {
+      Object.assign(form, {
+        username: detail.username || "",
+        password: "",
+        realName: detail.realName || "",
+        nickname: detail.nickname || "",
+        email: detail.email || "",
+        phone: "",
+        clearPhone: false,
+        gender: Number(detail.gender ?? 0),
+        userType: detail.userType === "ADMIN" ? "ADMIN" : "USER",
+        roleCodes: [],
+        postCodes: (detail.posts ?? [])
+          .map((post) => post.postCode || post.roleCode)
+          .filter((code): code is string => Boolean(code)),
+        sortOrder: Number(detail.sortOrder ?? 0),
+        remark: detail.remark || "",
+      });
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "账户详情加载失败"));
+      formVisible.value = false;
+    },
+  });
 }
 
 async function submit() {
@@ -636,22 +646,27 @@ async function changeEnabled(user: UserSummary, enabled: boolean) {
 async function openRoles(user: UserSummary) {
   roleTarget.value = user;
   rolesVisible.value = true;
-  rolesLoading.value = true;
   roleAssignment.roleIds = [];
   roleAssignment.userType = "USER";
-  try {
-    const [roleIds, detail] = await Promise.all([
-      props.client.getUserRoleIds(user.id),
-      props.client.getUser(user.id),
-    ]);
-    roleAssignment.roleIds = roleIds ?? [];
-    roleAssignment.userType = detail.userType === "ADMIN" ? "ADMIN" : "USER";
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "账户角色加载失败"));
-    rolesVisible.value = false;
-  } finally {
-    rolesLoading.value = false;
-  }
+  await rolesRequest.run(
+    () => Promise.all([props.client.getUserRoleIds(user.id), props.client.getUser(user.id)]),
+    {
+      onSuccess: ([roleIds, detail]) => {
+        roleAssignment.roleIds = roleIds ?? [];
+        roleAssignment.userType = detail.userType === "ADMIN" ? "ADMIN" : "USER";
+      },
+      onError: (error) => {
+        ElMessage.error(systemErrorMessage(error, "账户角色加载失败"));
+        rolesVisible.value = false;
+      },
+    },
+  );
+}
+
+function closeRoles() {
+  rolesRequest.invalidate();
+  roleTarget.value = undefined;
+  roleAssignment.roleIds = [];
 }
 
 async function saveRoles() {
@@ -659,7 +674,7 @@ async function saveRoles() {
     return;
   }
 
-  rolesLoading.value = true;
+  rolesSaving.value = true;
   try {
     await props.client.assignUserRoles(
       roleTarget.value.id,
@@ -672,7 +687,7 @@ async function saveRoles() {
   } catch (error) {
     ElMessage.error(systemErrorMessage(error, "账户角色保存失败"));
   } finally {
-    rolesLoading.value = false;
+    rolesSaving.value = false;
   }
 }
 
