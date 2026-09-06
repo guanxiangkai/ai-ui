@@ -29,6 +29,8 @@ export { digestPassword, generateTemporaryPassword } from "./password.js";
 export { PLATFORM_API_CODES, PLATFORM_HTTP_STATUS } from "./constants.js";
 export { PlatformError } from "./error.js";
 export { PlatformHttpClient } from "./http.js";
+export { addAccessTokenToJsonBody, addAccessTokenToQuery, assertAccessToken } from "./token.js";
+export type { AccessTokenPlacement } from "./token.js";
 export { PlatformSchedulerClient } from "./scheduler.js";
 export { PlatformSystemClient } from "./system.js";
 export type {

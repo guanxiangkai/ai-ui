@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/platform-client",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "通用 AI 平台的类型安全浏览器客户端",
   "license": "Apache-2.0",
   "repository": {

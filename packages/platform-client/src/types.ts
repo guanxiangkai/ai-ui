@@ -1,3 +1,5 @@
+import type { AccessTokenPlacement } from "./token.js";
+
 /** 同步或异步返回值。 */
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -105,6 +107,12 @@ export interface PlatformClientOptions {
   fetch?: typeof globalThis.fetch;
   /** 获取当前访问令牌，不返回令牌时不发送 Authorization。 */
   tokenProvider?: () => MaybePromise<string | null | undefined>;
+  /**
+   * 显式指定时，除 Authorization 外额外将访问令牌写入 query 或 JSON 请求体顶层 token。
+   *
+   * query 参数会出现在 URL、浏览器历史和代理日志中；仅应在 TLS 保护且服务端协议明确要求时使用。
+   */
+  accessTokenPlacement?: AccessTokenPlacement;
   /** 获取当前租户标识，不返回标识时不发送 X-Tenant-Id。 */
   tenantProvider?: () => MaybePromise<string | number | null | undefined>;
   /** 默认超时时间，单位毫秒。 */

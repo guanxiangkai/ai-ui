@@ -1,5 +1,17 @@
 # @guanxiangkai/platform-client
 
+## 0.3.1
+
+### Patch Changes
+
+- 拒绝请求路径中已有的 token 查询参数，避免访问令牌被旧值或重复值污染。
+
+## 0.3.0
+
+### Minor Changes
+
+- 新增可显式配置的访问令牌 query 与 JSON 请求体承载方式，并保持 Authorization 默认传输。
+
 ## 0.2.0
 
 ### Minor Changes

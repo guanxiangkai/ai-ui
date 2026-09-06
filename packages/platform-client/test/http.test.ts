@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { PlatformClientFactory, PlatformHttpClient } from "../src/index.js";
+import {
+  addAccessTokenToJsonBody,
+  addAccessTokenToQuery,
+  PlatformClientFactory,
+  PlatformHttpClient,
+} from "../src/index.js";
 import { RecordingTransport } from "./support/recording-transport.js";
 
 describe("PlatformHttpClient", () => {
@@ -86,6 +91,119 @@ describe("PlatformHttpClient", () => {
     expect(init?.body).toBe('{"name":"共享能力"}');
   });
 
+  it("默认仅通过 Authorization 发送访问令牌", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "access-token",
+    });
+
+    await client.request("/items", { method: "POST", body: { name: "共享能力" } });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/items");
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"name":"共享能力"}');
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer access-token",
+    );
+  });
+
+  it("显式配置时在 query 添加 token，且不修改输入", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    const query = { page: 1 };
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "access-token",
+      accessTokenPlacement: "query",
+    });
+
+    await client.request("/items", { query });
+
+    expect(query).toEqual({ page: 1 });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/items?page=1&token=access-token");
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer access-token",
+    );
+  });
+
+  it.each([
+    "/items?token=caller-value",
+    "/items?to%6ben=caller-value",
+    "/items?token=caller-value&token=duplicate-value",
+  ])("拒绝路径中已有或编码的 token 参数", async (path) => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "access-token",
+      accessTokenPlacement: "query",
+    });
+
+    await expect(client.request(path)).rejects.toMatchObject({
+      code: "TOKEN_FIELD_CONFLICT",
+      message: "请求路径已包含 token 参数，无法安全添加访问令牌",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("显式配置时在 JSON 请求体顶层添加 token，且不修改输入", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    const requestBody = { name: "共享能力" };
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "access-token",
+      accessTokenPlacement: "json-body",
+    });
+
+    await client.request("/items", { method: "POST", body: requestBody });
+
+    expect(requestBody).toEqual({ name: "共享能力" });
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"name":"共享能力","token":"access-token"}');
+  });
+
+  it("拒绝无效令牌和已有 token 字段", () => {
+    expect(() => addAccessTokenToQuery({ page: 1 }, "")).toThrow("访问令牌不能为空");
+    expect(() => addAccessTokenToJsonBody({ name: "共享能力" }, "has space")).toThrow(
+      "访问令牌不能为空",
+    );
+    expect(() => addAccessTokenToQuery({ token: "caller-value" }, "access-token")).toThrow(
+      "查询参数已包含 token",
+    );
+    expect(() => addAccessTokenToJsonBody({ token: "caller-value" }, "access-token")).toThrow(
+      "JSON 请求体已包含 token",
+    );
+    expect(() => addAccessTokenToQuery({}, "before\u0000after")).toThrow();
+    expect(() => addAccessTokenToJsonBody([], "access-token")).toThrow("必须是对象");
+  });
+
+  it("JSON 正文令牌策略拒绝 GET，避免 Fetch 丢弃身份或产生隐式失败", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      accessTokenPlacement: "json-body",
+      tokenProvider: () => "access-token",
+    });
+    await expect(client.request("/items")).rejects.toMatchObject({
+      code: "TOKEN_BODY_METHOD_UNSUPPORTED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("把业务失败转换为 PlatformError", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ code: 40301, message: "无权访问", data: null }), {
@@ -125,6 +243,25 @@ describe("PlatformHttpClient", () => {
       "Bearer request-token",
     );
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).has("Authorization")).toBe(false);
+  });
+
+  it("匿名请求不添加 Authorization 或额外 token 参数", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => "provider-token",
+      accessTokenPlacement: "query",
+    });
+
+    await client.request("/anonymous", { accessToken: null, query: { page: 1 } });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/anonymous?page=1");
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).has("Authorization")).toBe(false);
   });
 
   it("服务端返回 401 时通知产品清理会话", async () => {
@@ -191,6 +328,71 @@ describe("PlatformHttpClient", () => {
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization")).toBe(
       "Bearer fresh-token",
     );
+  });
+
+  it("401 重试时用新令牌重新计算 query", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+          status: 401,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    let accessToken = "expired-token";
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => accessToken,
+      accessTokenPlacement: "query",
+      onUnauthorized: () => {
+        accessToken = "fresh-token";
+        return true;
+      },
+    });
+
+    await client.request("/protected?scope=exam", { query: { page: 1 } });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/protected?scope=exam&page=1&token=expired-token",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/protected?scope=exam&page=1&token=fresh-token");
+    for (const [url] of fetchMock.mock.calls) {
+      expect(
+        new URL(url as string, "https://platform.example").searchParams.getAll("token"),
+      ).toHaveLength(1);
+    }
+  });
+
+  it("401 重试时用新令牌重新计算 JSON 请求体", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+          status: 401,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    let accessToken = "expired-token";
+    const client = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider: () => accessToken,
+      accessTokenPlacement: "json-body",
+      onUnauthorized: () => {
+        accessToken = "fresh-token";
+        return true;
+      },
+    });
+
+    await client.request("/protected", { method: "POST", body: { state: "pending" } });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"state":"pending","token":"expired-token"}');
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe('{"state":"pending","token":"fresh-token"}');
   });
 
   it("保留 BodyInit，并按产品钩子转换请求和响应", async () => {
