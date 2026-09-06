@@ -93,6 +93,7 @@
     width="680px"
     append-to-body
     :close-on-click-modal="false"
+    @closed="closeDialog"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="92px" :disabled="submitting">
       <div class="system-dialog-grid">
@@ -159,6 +160,7 @@ import {
 } from "element-plus";
 import { Plus, Refresh, Search } from "@element-plus/icons-vue";
 import type { RegionLevel, RegionSavePayload, SystemRegion } from "@guanxiangkai/platform-client";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -176,7 +178,9 @@ const levelOptions: Array<{ label: string; value: RegionLevel }> = [
   { label: "街道/乡镇", value: "street" },
 ];
 const regions = ref<SystemRegion[]>([]);
-const loading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const loading = listRequest.loading;
 const loadError = ref("");
 const keyword = ref("");
 const level = ref<"" | RegionLevel>("");
@@ -275,43 +279,50 @@ function reset() {
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    regions.value = await props.client.getRegionTree();
-  } catch (error) {
-    regions.value = [];
-    loadError.value = systemErrorMessage(error, "区域数据加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.getRegionTree(), {
+    onSuccess: (result) => {
+      regions.value = result;
+    },
+    onError: (error) => {
+      regions.value = [];
+      loadError.value = systemErrorMessage(error, "区域数据加载失败");
+    },
+  });
 }
 function openCreate(parentId: string) {
+  detailRequest.invalidate();
   activeId.value = "";
   resetForm(parentId);
   dialogVisible.value = true;
 }
 async function openEdit(region: SystemRegion) {
+  detailRequest.invalidate();
   activeId.value = region.id;
   dialogVisible.value = true;
-  try {
-    const detail = await props.client.getRegion(region.id);
-    Object.assign(form, {
-      regionName: detail.regionName,
-      regionCode: detail.regionCode,
-      parentId: detail.parentId || "0",
-      regionLevel: detail.regionLevel,
-      shortName: detail.shortName ?? "",
-      zipCode: detail.zipCode ?? "",
-      longitude: detail.longitude?.toString() ?? "",
-      latitude: detail.latitude?.toString() ?? "",
-      sortOrder: detail.sortOrder ?? 0,
-      remark: detail.remark ?? "",
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "区域详情加载失败"));
-    dialogVisible.value = false;
-  }
+  await detailRequest.run(() => props.client.getRegion(region.id), {
+    onSuccess: (detail) => {
+      Object.assign(form, {
+        regionName: detail.regionName,
+        regionCode: detail.regionCode,
+        parentId: detail.parentId || "0",
+        regionLevel: detail.regionLevel,
+        shortName: detail.shortName ?? "",
+        zipCode: detail.zipCode ?? "",
+        longitude: detail.longitude?.toString() ?? "",
+        latitude: detail.latitude?.toString() ?? "",
+        sortOrder: detail.sortOrder ?? 0,
+        remark: detail.remark ?? "",
+      });
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "区域详情加载失败"));
+      dialogVisible.value = false;
+    },
+  });
+}
+function closeDialog() {
+  detailRequest.invalidate();
 }
 function optionalNumber(value: string) {
   const parsed = Number(value);

@@ -61,7 +61,11 @@ export type PlatformResponseTransformer = (
   context: PlatformResponseContext,
 ) => MaybePromise<unknown>;
 
-/** 收到 401 后由产品决定是否已恢复会话并允许重试。 */
+/**
+ * 收到 401 后由产品决定是否已恢复会话并允许重试。
+ *
+ * `ReadableStream` 请求体不可安全重放，因此该类请求不会调用此处理器。
+ */
 export type PlatformUnauthorizedHandler = (
   context: PlatformResponseContext,
 ) => MaybePromise<boolean>;
@@ -90,7 +94,7 @@ export interface PlatformRequestOptions {
   transformRequest?: PlatformRequestTransformer;
   /** 本次请求的响应转换钩子，在通用响应解包前执行。 */
   transformResponse?: PlatformResponseTransformer;
-  /** 是否允许 401 恢复策略重试本次请求，默认允许。 */
+  /** 是否允许 401 恢复策略重试本次请求，默认允许；ReadableStream 请求体始终不重试。 */
   retryUnauthorized?: boolean;
 }
 
@@ -123,6 +127,6 @@ export interface PlatformClientOptions {
   transformRequest?: PlatformRequestTransformer;
   /** 所有请求共享的响应转换钩子。 */
   transformResponse?: PlatformResponseTransformer;
-  /** 服务端返回 401 时决定是否已恢复会话；返回 true 时仅重试一次原请求。 */
+  /** 服务端返回 401 时决定是否已恢复会话；返回 true 时仅重试一次可安全重放的原请求。 */
   onUnauthorized?: PlatformUnauthorizedHandler;
 }

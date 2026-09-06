@@ -191,6 +191,7 @@ import type {
 } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
 import PlatformSystemField from "./PlatformSystemField.vue";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemEntityConfig, SystemViewProps } from "./system-types";
 
@@ -214,8 +215,11 @@ const canEdit = canQuery && can("edit");
 const canToggle = can("edit");
 const canDelete = can("delete");
 
-const loading = ref(false);
-const detailLoading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const optionsRequest = useLatestRequest();
+const loading = listRequest.loading;
+const detailLoading = detailRequest.loading;
 const submitting = ref(false);
 const loadError = ref("");
 const statusLoadingId = ref("");
@@ -285,19 +289,21 @@ function selectableOptions(options: SystemOption[]) {
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listEntities<SystemEntity>(props.config.basePath, query);
-    page.records = result?.records ?? [];
-    page.total = Number(result?.total ?? 0);
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, `${props.config.entityName}列表加载失败`);
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(
+    () => props.client.listEntities<SystemEntity>(props.config.basePath, { ...query }),
+    {
+      onSuccess: (result) => {
+        page.records = result?.records ?? [];
+        page.total = Number(result?.total ?? 0);
+      },
+      onError: (error) => {
+        page.records = [];
+        page.total = 0;
+        loadError.value = systemErrorMessage(error, `${props.config.entityName}列表加载失败`);
+      },
+    },
+  );
 }
 
 function search() {
@@ -326,6 +332,7 @@ function changePage(pageNum: number) {
 }
 
 function resetForm() {
+  detailRequest.invalidate();
   Object.keys(form).forEach((key) => delete form[key]);
   Object.assign(form, props.config.initialValues);
   formRef.value?.clearValidate();
@@ -333,14 +340,20 @@ function resetForm() {
 }
 
 async function loadFieldOptions() {
-  await Promise.all(
-    props.config.formFields.map(async (field) => {
-      if (!field.optionsPath || fieldOptions[field.key]?.length) {
-        return;
-      }
-
-      fieldOptions[field.key] = (await props.client.listOptions(field.optionsPath)) ?? [];
-    }),
+  const fields = props.config.formFields.filter(
+    (field) => field.optionsPath && !fieldOptions[field.key]?.length,
+  );
+  if (!fields.length) return;
+  await optionsRequest.run(
+    () => Promise.all(fields.map((field) => props.client.listOptions(field.optionsPath!))),
+    {
+      onSuccess: (options) => {
+        fields.forEach((field, index) => {
+          fieldOptions[field.key] = options[index] ?? [];
+        });
+      },
+      onError: (error) => ElMessage.error(systemErrorMessage(error, "选项加载失败")),
+    },
   );
 }
 
@@ -354,21 +367,26 @@ async function openEdit(entity: SystemEntity) {
   resetForm();
   activeId.value = entity.id;
   dialogVisible.value = true;
-  detailLoading.value = true;
-  try {
-    const [detail] = await Promise.all([
-      props.client.getEntity<SystemEntity>(props.config.basePath, entity.id),
-      loadFieldOptions(),
-    ]);
-    props.config.formFields.forEach((field) => {
-      form[field.key] = detail[field.key] ?? props.config.initialValues[field.key] ?? null;
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, `${props.config.entityName}详情加载失败`));
-    dialogVisible.value = false;
-  } finally {
-    detailLoading.value = false;
-  }
+  await detailRequest.run(
+    async () => {
+      const [detail] = await Promise.all([
+        props.client.getEntity<SystemEntity>(props.config.basePath, entity.id),
+        loadFieldOptions(),
+      ]);
+      return detail;
+    },
+    {
+      onSuccess: (detail) => {
+        props.config.formFields.forEach((field) => {
+          form[field.key] = detail[field.key] ?? props.config.initialValues[field.key] ?? null;
+        });
+      },
+      onError: (error) => {
+        ElMessage.error(systemErrorMessage(error, `${props.config.entityName}详情加载失败`));
+        dialogVisible.value = false;
+      },
+    },
+  );
 }
 
 async function submit() {

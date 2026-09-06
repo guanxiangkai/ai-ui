@@ -18,7 +18,12 @@
 
     <section class="platform-panel system-query-panel">
       <div class="system-query-fields">
-        <select v-model="cityCode" class="system-native-select" aria-label="选择行政区">
+        <select
+          v-model="cityCode"
+          class="system-native-select"
+          aria-label="选择行政区"
+          @change="invalidateWeather"
+        >
           <option value="" disabled>选择行政区</option>
           <option
             v-for="option in regionOptions"
@@ -29,7 +34,13 @@
             {{ option.label }}
           </option>
         </select>
-        <el-input-number v-model="days" :min="1" :max="15" aria-label="预报天数" />
+        <el-input-number
+          v-model="days"
+          :min="1"
+          :max="15"
+          aria-label="预报天数"
+          @change="invalidateWeather"
+        />
       </div>
       <div class="system-query-actions">
         <el-button :icon="Refresh" @click="loadRegions">刷新区域</el-button
@@ -81,6 +92,7 @@ import {
 } from "element-plus";
 import { Refresh, Search } from "@element-plus/icons-vue";
 import type { SystemRegion, SystemWeather } from "@guanxiangkai/platform-client";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -98,7 +110,9 @@ interface RegionOption {
   disabled?: boolean;
 }
 const regionOptions = ref<RegionOption[]>([]);
-const loading = ref(false);
+const regionsRequest = useLatestRequest();
+const weatherRequest = useLatestRequest();
+const loading = weatherRequest.loading;
 const loadError = ref("");
 onMounted(() => void loadRegions());
 function toOptions(items: SystemRegion[], depth = 0): RegionOption[] {
@@ -120,32 +134,43 @@ function firstEnabledCode(items: SystemRegion[]): string {
   return "";
 }
 async function loadRegions() {
-  try {
-    const regions = await props.client.getRegionTree();
-    regionOptions.value = toOptions(regions);
-    if (!cityCode.value) cityCode.value = firstEnabledCode(regions);
-    if (cityCode.value) await loadWeather();
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "区域数据加载失败"));
-  }
+  await regionsRequest.run(() => props.client.getRegionTree(), {
+    onSuccess: (regions) => {
+      regionOptions.value = toOptions(regions);
+      if (!cityCode.value) cityCode.value = firstEnabledCode(regions);
+      if (cityCode.value) void loadWeather();
+    },
+    onError: (error) => ElMessage.error(systemErrorMessage(error, "区域数据加载失败")),
+  });
+}
+function invalidateWeather() {
+  weatherRequest.invalidate();
+  today.value = undefined;
+  forecast.value = [];
+  loadError.value = "";
 }
 async function loadWeather() {
   if (!cityCode.value) return;
-  loading.value = true;
   loadError.value = "";
-  try {
-    const [current, list] = await Promise.all([
-      props.client.getTodayWeather(cityCode.value),
-      props.client.getWeatherForecast(cityCode.value, days.value),
-    ]);
-    today.value = current;
-    forecast.value = list ?? [];
-  } catch (error) {
-    today.value = undefined;
-    forecast.value = [];
-    loadError.value = systemErrorMessage(error, "天气数据加载失败");
-  } finally {
-    loading.value = false;
-  }
+  const weatherCityCode = cityCode.value;
+  const weatherDays = days.value;
+  await weatherRequest.run(
+    () =>
+      Promise.all([
+        props.client.getTodayWeather(weatherCityCode),
+        props.client.getWeatherForecast(weatherCityCode, weatherDays),
+      ]),
+    {
+      onSuccess: ([current, list]) => {
+        today.value = current;
+        forecast.value = list ?? [];
+      },
+      onError: (error) => {
+        today.value = undefined;
+        forecast.value = [];
+        loadError.value = systemErrorMessage(error, "天气数据加载失败");
+      },
+    },
+  );
 }
 </script>

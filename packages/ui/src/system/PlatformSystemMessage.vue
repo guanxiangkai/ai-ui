@@ -107,7 +107,13 @@
     </section>
   </section>
 
-  <el-drawer v-model="drawerVisible" title="消息详情" size="520px" append-to-body>
+  <el-drawer
+    v-model="drawerVisible"
+    title="消息详情"
+    size="520px"
+    append-to-body
+    @closed="closeDetail"
+  >
     <article v-if="activeMessage" class="system-message-detail">
       <header>
         <el-tag :type="activeMessage.isRead ? 'info' : 'danger'">{{
@@ -142,6 +148,7 @@ import { Refresh, Search } from "@element-plus/icons-vue";
 import type { SystemMessage, SystemPage } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import type { SystemViewProps } from "./system-types";
 
 const props = withDefaults(defineProps<SystemViewProps>(), {
@@ -161,7 +168,9 @@ const canDisplay = computed(
 const page = reactive<SystemPage<SystemMessage>>({ records: [], total: 0 });
 const notices = ref<SystemMessage[]>([]);
 const unreadCount = ref(0);
-const loading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const loading = listRequest.loading;
 const loadError = ref("");
 const query = reactive({ pageNum: 1, pageSize: 20, msgTitle: "", msgType: "", isRead: "" });
 const draft = reactive({ msgTitle: "", msgType: "", isRead: "" });
@@ -190,31 +199,34 @@ function asMessage(value: unknown): SystemMessage {
   return value as SystemMessage;
 }
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const [result, count, noticeList] = await Promise.all([
-      props.client.listMessages({
-        pageNum: query.pageNum,
-        pageSize: query.pageSize,
-        msgTitle: query.msgTitle,
-        msgType: query.msgType,
-        isRead: query.isRead === "" ? undefined : query.isRead === "true",
-      }),
-      props.client.getUnreadMessageCount(),
-      props.client.listNotices(),
-    ]);
-    page.records = result.records ?? [];
-    page.total = Number(result.total ?? 0);
-    unreadCount.value = Number(count ?? 0);
-    notices.value = noticeList ?? [];
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, "消息加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(
+    () =>
+      Promise.all([
+        props.client.listMessages({
+          pageNum: query.pageNum,
+          pageSize: query.pageSize,
+          msgTitle: query.msgTitle,
+          msgType: query.msgType,
+          isRead: query.isRead === "" ? undefined : query.isRead === "true",
+        }),
+        props.client.getUnreadMessageCount(),
+        props.client.listNotices(),
+      ]),
+    {
+      onSuccess: ([result, count, noticeList]) => {
+        page.records = result.records ?? [];
+        page.total = Number(result.total ?? 0);
+        unreadCount.value = Number(count ?? 0);
+        notices.value = noticeList ?? [];
+      },
+      onError: (error) => {
+        page.records = [];
+        page.total = 0;
+        loadError.value = systemErrorMessage(error, "消息加载失败");
+      },
+    },
+  );
 }
 function search() {
   Object.assign(query, draft, { pageNum: 1 });
@@ -230,21 +242,48 @@ function changePage(pageNum: number) {
   void load();
 }
 async function openDetail(message: SystemMessage) {
-  try {
-    activeMessage.value = await props.client.getMessage(message.id);
-    drawerVisible.value = true;
-    if (!message.isRead && canRead.value) await markRead(message, false);
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "消息详情加载失败"));
+  drawerVisible.value = true;
+  const committed = await detailRequest.run(() => props.client.getMessage(message.id), {
+    onSuccess: (detail) => {
+      activeMessage.value = detail;
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "消息详情加载失败"));
+      drawerVisible.value = false;
+    },
+  });
+  if (committed && !message.isRead && canRead.value && isActiveDetail(message.id)) {
+    void markDetailRead(message.id);
   }
 }
-async function markRead(message: SystemMessage, reload = true) {
+
+function closeDetail() {
+  detailRequest.invalidate();
+  activeMessage.value = undefined;
+}
+
+function isActiveDetail(messageId: string): boolean {
+  return drawerVisible.value && activeMessage.value?.id === messageId;
+}
+
+async function markDetailRead(messageId: string) {
+  try {
+    await props.client.markMessageRead(messageId);
+  } catch (error) {
+    if (isActiveDetail(messageId)) {
+      ElMessage.error(systemErrorMessage(error, "消息状态更新失败"));
+    }
+    return;
+  }
+  if (isActiveDetail(messageId)) {
+    void load();
+  }
+}
+
+async function markRead(message: SystemMessage) {
   try {
     await props.client.markMessageRead(message.id);
-    message.isRead = true;
-    if (activeMessage.value?.id === message.id) activeMessage.value.isRead = true;
-    if (reload) await load();
-    else unreadCount.value = Math.max(0, unreadCount.value - 1);
+    await load();
   } catch (error) {
     ElMessage.error(systemErrorMessage(error, "消息状态更新失败"));
   }
@@ -260,8 +299,7 @@ async function markPageRead() {
 async function setDisplay(message: SystemMessage, display: boolean) {
   try {
     await props.client.setMessageDisplay(message.id, display);
-    message.display = display;
-    notices.value = await props.client.listNotices();
+    await load();
   } catch (error) {
     ElMessage.error(systemErrorMessage(error, "公告状态更新失败"));
     await load();

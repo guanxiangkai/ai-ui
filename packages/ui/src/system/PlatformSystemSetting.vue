@@ -98,6 +98,7 @@ import {
 } from "element-plus";
 import { Refresh } from "@element-plus/icons-vue";
 import type { SystemUserSetting } from "@guanxiangkai/platform-client";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -107,7 +108,8 @@ const props = withDefaults(defineProps<SystemViewProps>(), {
 });
 const emit = defineEmits<{ saved: [setting: SystemUserSetting] }>();
 const canEdit = computed(() => hasSystemPermission(props, "system:setting:edit"));
-const loading = ref(false);
+const loadRequest = useLatestRequest();
+const loading = loadRequest.loading;
 const saving = ref(false);
 const loadError = ref("");
 const form = reactive<
@@ -138,21 +140,21 @@ const themeLabel = computed(
 );
 onMounted(() => void load());
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const setting = await props.client.getCurrentUserSetting();
-    if (setting) Object.assign(form, setting, { extensions: setting.extensions ?? {} });
-  } catch (error) {
-    loadError.value = systemErrorMessage(error, "系统设置加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await loadRequest.run(() => props.client.getCurrentUserSetting(), {
+    onSuccess: (setting) => {
+      if (setting) Object.assign(form, setting, { extensions: setting.extensions ?? {} });
+    },
+    onError: (error) => {
+      loadError.value = systemErrorMessage(error, "系统设置加载失败");
+    },
+  });
 }
 async function save() {
   saving.value = true;
   try {
     const setting = await props.client.updateCurrentUserSetting({ ...form });
+    loadRequest.invalidate();
     Object.assign(form, setting, { extensions: setting.extensions ?? {} });
     emit("saved", setting);
     ElMessage.success("系统设置已保存");

@@ -120,6 +120,7 @@
     :title="`${props.config.title}详情`"
     size="620px"
     append-to-body
+    @closed="closeDetail"
   >
     <el-skeleton :loading="detailLoading" animated>
       <section v-if="detail" class="system-log-detail">
@@ -153,6 +154,7 @@ import { Delete, Refresh, Search } from "@element-plus/icons-vue";
 import type { QueryValue, SystemLogRecord, SystemPage } from "@guanxiangkai/platform-client";
 import PlatformPager from "./PlatformPager.vue";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import type { SystemLogConfig, SystemViewProps } from "./system-types";
 
 type LogRecord = SystemLogRecord;
@@ -170,8 +172,10 @@ const props = withDefaults(
 
 const canQuery = hasSystemPermission(props, "system:log:query");
 const canClear = hasSystemPermission(props, "system:log:clear");
-const loading = ref(false);
-const detailLoading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const loading = listRequest.loading;
+const detailLoading = detailRequest.loading;
 const loadError = ref("");
 const detailVisible = ref(false);
 const detail = ref<LogRecord>();
@@ -264,19 +268,18 @@ function formatValue(value: unknown, kind: string | undefined) {
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    const result = await props.client.listLogs<LogRecord>(props.config.kind, query);
-    page.records = result?.records ?? [];
-    page.total = Number(result?.total ?? 0);
-  } catch (error) {
-    page.records = [];
-    page.total = 0;
-    loadError.value = systemErrorMessage(error, `${props.config.title}加载失败`);
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.listLogs<LogRecord>(props.config.kind, { ...query }), {
+    onSuccess: (result) => {
+      page.records = result?.records ?? [];
+      page.total = Number(result?.total ?? 0);
+    },
+    onError: (error) => {
+      page.records = [];
+      page.total = 0;
+      loadError.value = systemErrorMessage(error, `${props.config.title}加载失败`);
+    },
+  });
 }
 
 function search() {
@@ -316,16 +319,21 @@ function changePage(pageNum: number) {
 
 async function openDetail(record: LogRecord) {
   detailVisible.value = true;
-  detailLoading.value = true;
   detail.value = undefined;
-  try {
-    detail.value = await props.client.getLog<LogRecord>(props.config.kind, record.id);
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, `${props.config.title}详情加载失败`));
-    detailVisible.value = false;
-  } finally {
-    detailLoading.value = false;
-  }
+  await detailRequest.run(() => props.client.getLog<LogRecord>(props.config.kind, record.id), {
+    onSuccess: (result) => {
+      detail.value = result;
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, `${props.config.title}详情加载失败`));
+      detailVisible.value = false;
+    },
+  });
+}
+
+function closeDetail() {
+  detailRequest.invalidate();
+  detail.value = undefined;
 }
 
 async function clearLogs() {

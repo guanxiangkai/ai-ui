@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlatformAuthClient } from "../src/auth.js";
+import { PlatformHttpClient } from "../src/http.js";
 import { digestPassword, generateTemporaryPassword } from "../src/password.js";
 import { RecordingTransport } from "./support/recording-transport.js";
 
@@ -81,5 +82,47 @@ describe("PlatformAuthClient", () => {
         },
       },
     ]);
+  });
+
+  it("登出时使用显式捕获的令牌，而非之后变化的令牌提供器", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ code: 200, message: "ok", data: null }), { status: 200 }),
+      );
+    let currentToken = "new-login-token";
+    const tokenProvider = vi.fn(() => currentToken);
+    const http = new PlatformHttpClient({
+      baseUrl: "/api",
+      fetch: fetchMock,
+      tokenProvider,
+    });
+    const client = new PlatformAuthClient(http);
+
+    const loggingOut = client.logout("logged-out-token");
+    currentToken = "another-new-login-token";
+    await loggingOut;
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/logout");
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer logged-out-token",
+    );
+    expect(tokenProvider).not.toHaveBeenCalled();
+  });
+
+  it("旧会话注销收到 401 时不刷新当前会话", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ code: 401, message: "会话已失效", data: null }), {
+        status: 401,
+      }),
+    );
+    const onUnauthorized = vi.fn(() => true);
+    const client = new PlatformAuthClient(
+      new PlatformHttpClient({ baseUrl: "/api", fetch: fetchMock, onUnauthorized }),
+    );
+
+    await expect(client.logout("old-token")).rejects.toMatchObject({ status: 401 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

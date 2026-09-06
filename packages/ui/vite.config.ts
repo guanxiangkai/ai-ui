@@ -1,10 +1,14 @@
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite-plus";
-import dts from "vite-plugin-dts";
+import dts from "unplugin-dts/vite";
+
+import { createExternalMatcher } from "../build-config/src/index.js";
 
 export default defineConfig({
-  // Vite+ 与 Vue 插件当前暴露的插件类型存在递归结构，运行时实现兼容。
-  plugins: [vue() as never, dts({ insertTypesEntry: true }) as never],
+  plugins: [
+    vue(),
+    dts({ processor: "vue", tsconfigPath: "./tsconfig.build.json", entryRoot: "src" }),
+  ],
   build: {
     emptyOutDir: true,
     sourcemap: true,
@@ -15,7 +19,12 @@ export default defineConfig({
       cssFileName: "style",
     },
     rollupOptions: {
-      external: ["@guanxiangkai/platform-client", "element-plus", "vue"],
+      external: createExternalMatcher([
+        "@guanxiangkai/platform-client",
+        "@element-plus/icons-vue",
+        "element-plus",
+        "vue",
+      ]),
     },
   },
   lint: {

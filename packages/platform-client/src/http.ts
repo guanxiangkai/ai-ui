@@ -3,6 +3,7 @@ import { PlatformError } from "./error.js";
 import { addAccessTokenToJsonBody, addAccessTokenToQuery, assertAccessToken } from "./token.js";
 import type {
   ApiEnvelope,
+  MaybePromise,
   PlatformClientOptions,
   PlatformRequestClient,
   PlatformRequestOptions,
@@ -117,6 +118,51 @@ function errorMessage(payload: unknown, fallback: string): string {
   return typeof message === "string" && message.length > 0 ? message : fallback;
 }
 
+interface BuiltRequest {
+  readonly url: string;
+  readonly init: RequestInit;
+  readonly canRetryAfterUnauthorized: boolean;
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) throw signal.reason;
+}
+
+/**
+ * 在等待可扩展钩子时响应取消。底层钩子不要求支持取消，但其迟到的完成不会继续本次请求。
+ */
+function awaitWithAbort<T>(operation: () => MaybePromise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    let pending: MaybePromise<T>;
+    try {
+      pending = operation();
+    } catch (error: unknown) {
+      cleanup();
+      reject(error);
+      return;
+    }
+    Promise.resolve(pending).then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+}
+
 /** 支持 Token、租户、超时和平台响应解包的 HTTP 客户端。 */
 export class PlatformHttpClient implements PlatformRequestClient {
   private readonly fetchImplementation: typeof globalThis.fetch;
@@ -134,6 +180,91 @@ export class PlatformHttpClient implements PlatformRequestClient {
       throw new PlatformError("当前环境没有可用的 Fetch 实现", 0, "FETCH_UNAVAILABLE", undefined);
     }
     this.fetchImplementation = fetchImplementation;
+  }
+
+  /** 为一次发送重新读取动态身份信息并构造可由 Fetch 消费的请求。 */
+  private async buildRequest(
+    path: string,
+    requestOptions: PlatformRequestOptions,
+    signal: AbortSignal,
+  ): Promise<BuiltRequest> {
+    throwIfAborted(signal);
+    const headers = new Headers(this.options.defaultHeaders);
+    new Headers(requestOptions.headers).forEach((value, name) => headers.set(name, value));
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+    let accessToken: string | null | undefined;
+    if (requestOptions.accessToken === null) {
+      headers.delete("Authorization");
+    } else {
+      accessToken =
+        requestOptions.accessToken ??
+        (await awaitWithAbort(() => this.options.tokenProvider?.(), signal));
+      throwIfAborted(signal);
+      if (accessToken !== null && accessToken !== undefined) {
+        assertAccessToken(accessToken);
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+    }
+
+    const tenantId = await awaitWithAbort(() => this.options.tenantProvider?.(), signal);
+    throwIfAborted(signal);
+    if (tenantId !== null && tenantId !== undefined && String(tenantId).length > 0) {
+      headers.set("X-Tenant-Id", String(tenantId));
+    }
+
+    const endpointUrl = joinUrl(this.options.baseUrl, path);
+    let query = requestOptions.query;
+    if (
+      accessToken !== null &&
+      accessToken !== undefined &&
+      this.options.accessTokenPlacement === "query"
+    ) {
+      assertUrlDoesNotContainAccessToken(endpointUrl);
+      query = addAccessTokenToQuery(requestOptions.query, accessToken);
+    }
+    if (
+      accessToken !== null &&
+      accessToken !== undefined &&
+      this.options.accessTokenPlacement === "json-body" &&
+      (requestOptions.method ?? "GET") === "GET"
+    ) {
+      throw new PlatformError(
+        "GET 请求不能使用 JSON 正文令牌，请使用查询参数或自定义传输",
+        0,
+        "TOKEN_BODY_METHOD_UNSUPPORTED",
+        undefined,
+      );
+    }
+    const requestBody =
+      accessToken !== null &&
+      accessToken !== undefined &&
+      this.options.accessTokenPlacement === "json-body"
+        ? addAccessTokenToJsonBody(requestOptions.body, accessToken)
+        : requestOptions.body;
+    const url = appendQuery(endpointUrl, query);
+    const body = serializeBody(requestBody, headers);
+    const init: RequestInit = {
+      method: requestOptions.method ?? "GET",
+      headers,
+      signal,
+      credentials: requestOptions.credentials ?? "same-origin",
+    };
+    if (body !== undefined) init.body = body;
+
+    const requestContext = { path, url, headers, body, init };
+    await awaitWithAbort(() => this.options.transformRequest?.(requestContext), signal);
+    throwIfAborted(signal);
+    await awaitWithAbort(() => requestOptions.transformRequest?.(requestContext), signal);
+    throwIfAborted(signal);
+
+    return {
+      url,
+      init,
+      canRetryAfterUnauthorized: !(
+        typeof ReadableStream !== "undefined" && init.body instanceof ReadableStream
+      ),
+    };
   }
 
   /**
@@ -163,85 +294,43 @@ export class PlatformHttpClient implements PlatformRequestClient {
       let hasRetriedAfterUnauthorized = false;
 
       while (true) {
-        const headers = new Headers(this.options.defaultHeaders);
-        new Headers(requestOptions.headers).forEach((value, name) => headers.set(name, value));
-        if (!headers.has("Accept")) headers.set("Accept", "application/json");
-
-        let accessToken: string | null | undefined;
-        if (requestOptions.accessToken === null) {
-          headers.delete("Authorization");
-        } else {
-          accessToken = requestOptions.accessToken ?? (await this.options.tokenProvider?.());
-          if (accessToken !== null && accessToken !== undefined) {
-            assertAccessToken(accessToken);
-            headers.set("Authorization", `Bearer ${accessToken}`);
-          }
-        }
-
-        const tenantId = await this.options.tenantProvider?.();
-        if (tenantId !== null && tenantId !== undefined && String(tenantId).length > 0) {
-          headers.set("X-Tenant-Id", String(tenantId));
-        }
-
-        const endpointUrl = joinUrl(this.options.baseUrl, path);
-        let query = requestOptions.query;
-        if (
-          accessToken !== null &&
-          accessToken !== undefined &&
-          this.options.accessTokenPlacement === "query"
-        ) {
-          assertUrlDoesNotContainAccessToken(endpointUrl);
-          query = addAccessTokenToQuery(requestOptions.query, accessToken);
-        }
-        if (
-          accessToken !== null &&
-          accessToken !== undefined &&
-          this.options.accessTokenPlacement === "json-body" &&
-          (requestOptions.method ?? "GET") === "GET"
-        ) {
-          throw new PlatformError(
-            "GET 请求不能使用 JSON 正文令牌，请使用查询参数或自定义传输",
-            0,
-            "TOKEN_BODY_METHOD_UNSUPPORTED",
-            undefined,
-          );
-        }
-        const requestBody =
-          accessToken !== null &&
-          accessToken !== undefined &&
-          this.options.accessTokenPlacement === "json-body"
-            ? addAccessTokenToJsonBody(requestOptions.body, accessToken)
-            : requestOptions.body;
-        const url = appendQuery(endpointUrl, query);
-        const body = serializeBody(requestBody, headers);
-        const init: RequestInit = {
-          method: requestOptions.method ?? "GET",
-          headers,
-          signal: controller.signal,
-          credentials: requestOptions.credentials ?? "same-origin",
-        };
-        if (body !== undefined) init.body = body;
-
-        const requestContext = { path, url, headers, body, init };
-        await this.options.transformRequest?.(requestContext);
-        await requestOptions.transformRequest?.(requestContext);
-
+        const builtRequest = await this.buildRequest(path, requestOptions, controller.signal);
+        const { url, init } = builtRequest;
+        throwIfAborted(controller.signal);
         const response = await this.fetchImplementation(url, init);
+        throwIfAborted(controller.signal);
         let payload = await parseResponse(response, responseType);
         const responseContext = { path, url, response, responseType, payload };
-        payload = (await this.options.transformResponse?.(responseContext)) ?? payload;
         payload =
-          (await requestOptions.transformResponse?.({ ...responseContext, payload })) ?? payload;
+          (await awaitWithAbort(
+            () => this.options.transformResponse?.(responseContext),
+            controller.signal,
+          )) ?? payload;
+        throwIfAborted(controller.signal);
+        payload =
+          (await awaitWithAbort(
+            () => requestOptions.transformResponse?.({ ...responseContext, payload }),
+            controller.signal,
+          )) ?? payload;
+        throwIfAborted(controller.signal);
 
         if (!response.ok) {
           if (
             response.status === PLATFORM_HTTP_STATUS.UNAUTHORIZED &&
             requestOptions.retryUnauthorized !== false &&
             !hasRetriedAfterUnauthorized &&
+            builtRequest.canRetryAfterUnauthorized &&
             this.options.onUnauthorized
           ) {
             hasRetriedAfterUnauthorized = true;
-            if (await this.options.onUnauthorized({ ...responseContext, payload })) continue;
+            if (
+              await awaitWithAbort(
+                () => this.options.onUnauthorized?.({ ...responseContext, payload }) ?? false,
+                controller.signal,
+              )
+            ) {
+              continue;
+            }
           }
           throw new PlatformError(
             errorMessage(payload, `平台请求失败（HTTP ${response.status}）`),

@@ -277,6 +277,7 @@ import type {
   SystemMenuType,
   SystemOption,
 } from "@guanxiangkai/platform-client";
+import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
 
@@ -292,8 +293,10 @@ const canEdit = canQuery && can("system:menu:edit");
 const canToggle = can("system:menu:edit");
 const canDelete = can("system:menu:delete");
 
-const loading = ref(false);
-const detailLoading = ref(false);
+const listRequest = useLatestRequest();
+const detailRequest = useLatestRequest();
+const loading = listRequest.loading;
+const detailLoading = detailRequest.loading;
 const submitting = ref(false);
 const loadError = ref("");
 const statusLoadingId = ref("");
@@ -396,16 +399,16 @@ function filterMenus(nodes: SystemMenu[], search: string, type: string): SystemM
 }
 
 async function load() {
-  loading.value = true;
   loadError.value = "";
-  try {
-    menus.value = (await props.client.getMenuTree()) ?? [];
-  } catch (error) {
-    menus.value = [];
-    loadError.value = systemErrorMessage(error, "菜单树加载失败");
-  } finally {
-    loading.value = false;
-  }
+  await listRequest.run(() => props.client.getMenuTree(), {
+    onSuccess: (result) => {
+      menus.value = result ?? [];
+    },
+    onError: (error) => {
+      menus.value = [];
+      loadError.value = systemErrorMessage(error, "菜单树加载失败");
+    },
+  });
 }
 
 function applyFilter() {
@@ -424,6 +427,7 @@ function notifyNavigationChanged() {
 }
 
 function resetForm() {
+  detailRequest.invalidate();
   activeId.value = "";
   Object.assign(form, {
     parentId: "",
@@ -453,30 +457,29 @@ async function openEdit(menu: SystemMenu) {
   resetForm();
   activeId.value = menu.id;
   dialogVisible.value = true;
-  detailLoading.value = true;
-  try {
-    const detail = await props.client.getMenu(menu.id);
-    Object.assign(form, {
-      parentId: detail.parentId || "",
-      menuName: detail.menuName || "",
-      menuTitle: detail.menuTitle || "",
-      menuType: detail.menuType,
-      path: detail.path || "",
-      component: detail.component || "",
-      permission: detail.permission || "",
-      icon: detail.icon || "",
-      visible: detail.visible !== false,
-      keepAlive: Boolean(detail.keepAlive),
-      isExternal: Boolean(detail.isExternal),
-      sortOrder: detail.sortOrder ?? detail.sort ?? 0,
-      remark: detail.remark || "",
-    });
-  } catch (error) {
-    ElMessage.error(systemErrorMessage(error, "菜单详情加载失败"));
-    dialogVisible.value = false;
-  } finally {
-    detailLoading.value = false;
-  }
+  await detailRequest.run(() => props.client.getMenu(menu.id), {
+    onSuccess: (detail) => {
+      Object.assign(form, {
+        parentId: detail.parentId || "",
+        menuName: detail.menuName || "",
+        menuTitle: detail.menuTitle || "",
+        menuType: detail.menuType,
+        path: detail.path || "",
+        component: detail.component || "",
+        permission: detail.permission || "",
+        icon: detail.icon || "",
+        visible: detail.visible !== false,
+        keepAlive: Boolean(detail.keepAlive),
+        isExternal: Boolean(detail.isExternal),
+        sortOrder: detail.sortOrder ?? detail.sort ?? 0,
+        remark: detail.remark || "",
+      });
+    },
+    onError: (error) => {
+      ElMessage.error(systemErrorMessage(error, "菜单详情加载失败"));
+      dialogVisible.value = false;
+    },
+  });
 }
 
 function buildPayload(): SystemMenuPayload {

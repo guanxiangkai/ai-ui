@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/ui",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "通用 AI 应用共享的中性 Vue 组件和设计令牌",
   "license": "Apache-2.0",
   "repository": {
@@ -39,6 +39,7 @@
     "@guanxiangkai/platform-client": "workspace:^"
   },
   "devDependencies": {
+    "@guanxiangkai/build-config": "workspace:^",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/compiler-sfc": "catalog:",
     "@vue/language-core": "catalog:",
@@ -46,7 +47,7 @@
     "element-plus": "catalog:",
     "happy-dom": "catalog:",
     "typescript": "catalog:",
-    "vite-plugin-dts": "catalog:",
+    "unplugin-dts": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:"
