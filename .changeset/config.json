@@ -12,5 +12,5 @@
     "version": false,
     "tag": false
   },
-  "format": "oxfmt"
+  "format": false
 }

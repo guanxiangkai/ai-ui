@@ -143,6 +143,7 @@ useSession = createPlatformSessionStore({
 ## 版本与发布
 
 1. 在变更分支执行 `vp run changeset`，描述受影响的软件包及版本级别。
+   发布准备使用 `pnpm run version-packages`：由 Changesets 生成版本和变更记录，再由 `vp fmt` 统一格式化；Changesets 的内置格式化关闭，避免调用 Vite+ 的 IDE 专用 `oxfmt` 包装器。
 2. 通过功能分支向受保护的 `main` 提交 Pull Request，并通过全部必需状态检查；人工审核归属遵循 `AGENTS.md` 与全仓库 CODEOWNERS。
 3. 在 GitHub Actions 手工运行“发布软件包”；`latest` 只能从 `main` 发布。
 4. 发布任务绑定 `package-release` 环境，并在 npm 软件包设置中将本仓库工作流登记为可信发布者；工作流触发与 npm 信任配置分别核验。

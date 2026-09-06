@@ -12,7 +12,7 @@
     "check:packages": "node scripts/check-packages.mjs",
     "ready": "vp run -r build && vp check && vp run -r test && node scripts/check-packages.mjs",
     "changeset": "changeset",
-    "version-packages": "changeset version"
+    "version-packages": "changeset version && vp fmt"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
