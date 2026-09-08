@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "仅允许登录测试中 SHA-1(secret) 的公开确定性测试向量"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^e5e9fa1ba31ecd1ae84f75caaa474f3a663f05f4$''']
+paths = ['''^packages/platform-client/test/auth\.test\.ts$''']
