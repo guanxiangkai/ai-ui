@@ -125,7 +125,7 @@ export class PlatformAuthClient implements AuthClient {
 
     return this.http.request<AuthSession>(this.endpoints.login, {
       method: "POST",
-      body: { ...loginRequest, passwordDigest },
+      body: { ...loginRequest, password: passwordDigest },
       accessToken: null,
       retryUnauthorized: false,
     });

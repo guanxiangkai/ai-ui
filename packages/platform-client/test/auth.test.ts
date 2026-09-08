@@ -16,19 +16,38 @@ describe("PlatformAuthClient", () => {
     const transport = new RecordingTransport({});
     const client = new PlatformAuthClient(transport);
 
-    await client.login({ username: "alice", password: rawPassword, captcha: "captcha" });
+    await client.login({
+      username: "alice",
+      password: rawPassword,
+      captcha: "captcha",
+      captchaKey: "captcha-key",
+    });
 
     const body = transport.calls[0]?.options.body as Record<string, unknown>;
     expect(body).toEqual({
       username: "alice",
       captcha: "captcha",
-      passwordDigest: await digestPassword(rawPassword),
+      captchaKey: "captcha-key",
+      password: "394f28745cc4992d8d43dd5f788c3366535226e3",
     });
-    expect(body.passwordDigest).not.toBe(rawPassword);
-    expect(body.password).toBeUndefined();
+    expect(body.password).not.toBe(rawPassword);
+    expect(body.passwordDigest).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain(rawPassword);
     expect(transport.calls[0]?.options).toMatchObject({
       accessToken: null,
       retryUnauthorized: false,
+    });
+  });
+
+  it("未提供验证码时省略可选字段", async () => {
+    vi.stubGlobal("isSecureContext", true);
+    const transport = new RecordingTransport({});
+
+    await new PlatformAuthClient(transport).login({ username: "alice", password: "secret" });
+
+    expect(transport.calls[0]?.options.body).toEqual({
+      username: "alice",
+      password: "e5e9fa1ba31ecd1ae84f75caaa474f3a663f05f4",
     });
   });
 
