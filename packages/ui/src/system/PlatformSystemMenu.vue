@@ -271,11 +271,14 @@ import {
   ElTag,
 } from "element-plus";
 import { Plus, Refresh, Search } from "@element-plus/icons-vue";
-import type {
-  SystemMenu,
-  SystemMenuPayload,
-  SystemMenuType,
-  SystemOption,
+import {
+  filterTree,
+  flattenTree,
+  walkTree,
+  type SystemMenu,
+  type SystemMenuPayload,
+  type SystemMenuType,
+  type SystemOption,
 } from "@guanxiangkai/platform-client";
 import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
@@ -336,7 +339,7 @@ const MENU_TAG_TYPES = {
   BUTTON: "info",
 } satisfies Record<SystemMenuType, NonNullable<TagProps["type"]>>;
 
-const flatMenus = computed(() => flattenMenus(menus.value));
+const flatMenus = computed(() => flattenTree(menus.value));
 const visibleCount = computed(
   () =>
     flatMenus.value.filter((menu) => menu.menuType !== "BUTTON" && menu.visible !== false).length,
@@ -344,9 +347,29 @@ const visibleCount = computed(
 const permissionCount = computed(
   () => flatMenus.value.filter((menu) => Boolean(menu.permission)).length,
 );
-const parentOptions = computed(() => createParentOptions(menus.value, activeId.value));
+const parentOptions = computed(() => {
+  const options: SystemOption[] = [];
+  walkTree(menus.value, (node, depth) => {
+    if (node.id === activeId.value) return false;
+    options.push({
+      label: `${"　".repeat(depth)}${node.menuTitle || node.menuName}`,
+      value: node.id,
+    });
+    return true;
+  });
+  return options;
+});
 const filteredMenus = computed(() =>
-  filterMenus(menus.value, appliedKeyword.value, appliedType.value),
+  filterTree(menus.value, (node) => {
+    const term = appliedKeyword.value.trim().toLowerCase();
+    const matchesType = appliedType.value === "all" || node.menuType === appliedType.value;
+    const matchesTerm =
+      !term ||
+      [node.menuName, node.menuTitle, node.permission, node.path].some((value) =>
+        value?.toLowerCase().includes(term),
+      );
+    return matchesType && matchesTerm;
+  }),
 );
 
 onMounted(load);
@@ -361,41 +384,6 @@ function menuTypeLabel(value: SystemMenuType) {
 
 function menuTagType(value: SystemMenuType): NonNullable<TagProps["type"]> {
   return MENU_TAG_TYPES[value];
-}
-
-function flattenMenus(nodes: SystemMenu[]): SystemMenu[] {
-  return nodes.flatMap((node) => [node, ...flattenMenus(node.children ?? [])]);
-}
-
-function createParentOptions(nodes: SystemMenu[], excludedId: string, depth = 0): SystemOption[] {
-  return nodes
-    .filter((node) => node.id !== excludedId)
-    .flatMap((node) => [
-      {
-        label: `${"　".repeat(depth)}${node.menuTitle || node.menuName}`,
-        value: node.id,
-      },
-      ...createParentOptions(node.children ?? [], excludedId, depth + 1),
-    ]);
-}
-
-function filterMenus(nodes: SystemMenu[], search: string, type: string): SystemMenu[] {
-  const term = search.trim().toLowerCase();
-
-  return nodes.flatMap((node) => {
-    const children = filterMenus(node.children ?? [], search, type);
-    const matchesType = type === "all" || node.menuType === type;
-    const matchesTerm =
-      !term ||
-      [node.menuName, node.menuTitle, node.permission, node.path].some((value) =>
-        value?.toLowerCase().includes(term),
-      );
-
-    if ((matchesType && matchesTerm) || children.length > 0) {
-      return [{ ...node, children }];
-    }
-    return [];
-  });
 }
 
 async function load() {

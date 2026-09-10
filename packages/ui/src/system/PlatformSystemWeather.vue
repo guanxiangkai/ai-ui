@@ -91,7 +91,12 @@ import {
   ElTableColumn,
 } from "element-plus";
 import { Refresh, Search } from "@element-plus/icons-vue";
-import type { SystemRegion, SystemWeather } from "@guanxiangkai/platform-client";
+import {
+  flattenTree,
+  walkTree,
+  type SystemRegion,
+  type SystemWeather,
+} from "@guanxiangkai/platform-client";
 import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
@@ -115,29 +120,23 @@ const weatherRequest = useLatestRequest();
 const loading = weatherRequest.loading;
 const loadError = ref("");
 onMounted(() => void loadRegions());
-function toOptions(items: SystemRegion[], depth = 0): RegionOption[] {
-  return items.flatMap((item) => [
-    {
-      label: `${"　".repeat(depth)}${item.regionName}`,
-      value: item.regionCode,
-      disabled: item.enabled === false,
-    },
-    ...toOptions(item.children ?? [], depth + 1),
-  ]);
-}
-function firstEnabledCode(items: SystemRegion[]): string {
-  for (const item of items) {
-    if (item.enabled !== false && item.regionCode) return item.regionCode;
-    const childCode = firstEnabledCode(item.children ?? []);
-    if (childCode) return childCode;
-  }
-  return "";
-}
 async function loadRegions() {
   await regionsRequest.run(() => props.client.getRegionTree(), {
     onSuccess: (regions) => {
-      regionOptions.value = toOptions(regions);
-      if (!cityCode.value) cityCode.value = firstEnabledCode(regions);
+      const options: RegionOption[] = [];
+      walkTree(regions, (item, depth) => {
+        options.push({
+          label: `${"　".repeat(depth)}${item.regionName}`,
+          value: item.regionCode,
+          disabled: item.enabled === false,
+        });
+      });
+      regionOptions.value = options;
+      if (!cityCode.value) {
+        cityCode.value =
+          flattenTree(regions).find((item) => item.enabled !== false && Boolean(item.regionCode))
+            ?.regionCode ?? "";
+      }
       if (cityCode.value) void loadWeather();
     },
     onError: (error) => ElMessage.error(systemErrorMessage(error, "区域数据加载失败")),

@@ -97,6 +97,14 @@ const platform = createPlatformClient({
 
 共享包不保存任何具体租户、组织或业务系统值，租户由部署环境和消费端入口决定。
 
+### 类型与树契约
+
+`platform-client` 提供 `PlatformPage`、`PlatformIdentity`、`PlatformCreatedFields`、
+`PlatformAuditFields` 和 `PlatformTreeNode` 供 DTO 通过 TypeScript 接口组合；系统分页在此基础上
+保留 `pages`，不会要求 DTO 具备运行时基类。`walkTree`、`flattenTree`、`mapTree` 与 `filterTree` 接受普通
+树形 DTO，使用迭代遍历、不改写输入，并在检测到循环引用时抛出 `树结构存在循环引用`。筛选结果保留
+命中节点及其祖先，且只在返回结果中写入筛选后的 `children`。
+
 ### 认证与传输扩展
 
 `platform-client` 直接支持 `responseType`、`credentials` 与单次 `accessToken` 覆盖。JSON 响应始终校验统一信封；`BodyInit`（如 `FormData`、`Blob` 和 `URLSearchParams`）会原样发送，其他请求体会编码为 JSON。消费端如需签名、追踪、加密载荷或自定义响应信封，可通过 `transformRequest` 与 `transformResponse` 注入策略，不应把业务字段写入基础包。

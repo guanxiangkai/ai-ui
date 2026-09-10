@@ -159,7 +159,14 @@ import {
   ElTableColumn,
 } from "element-plus";
 import { Plus, Refresh, Search } from "@element-plus/icons-vue";
-import type { RegionLevel, RegionSavePayload, SystemRegion } from "@guanxiangkai/platform-client";
+import {
+  filterTree,
+  flattenTree,
+  walkTree,
+  type RegionLevel,
+  type RegionSavePayload,
+  type SystemRegion,
+} from "@guanxiangkai/platform-client";
 import { useLatestRequest } from "../composables/useLatestRequest.js";
 import { hasSystemPermission, systemErrorMessage } from "./system-context";
 import type { SystemViewProps } from "./system-types";
@@ -206,54 +213,33 @@ const rules: FormRules = {
   regionLevel: [{ required: true, message: "请选择区域层级", trigger: "change" }],
   parentId: [{ required: true, message: "请选择父区域", trigger: "change" }],
 };
-interface RegionOption {
-  label: string;
-  value: string;
-}
-
-const flatRegions = computed(() => flatten(regions.value));
+const flatRegions = computed(() => flattenTree(regions.value));
 const enabledCount = computed(
   () => flatRegions.value.filter((item) => item.enabled !== false).length,
 );
 const visibleRegions = computed(() =>
-  filterTree(regions.value, keyword.value.trim().toLowerCase(), level.value),
-);
-const parentOptions = computed(() => [
-  { label: "顶级区域", value: "0" },
-  ...toOptions(regions.value),
-]);
-
-onMounted(() => void load());
-
-function flatten(items: SystemRegion[]): SystemRegion[] {
-  return items.flatMap((item) => [item, ...flatten(item.children ?? [])]);
-}
-function toOptions(items: SystemRegion[], depth = 0): RegionOption[] {
-  return items.flatMap((item) =>
-    item.id === activeId.value
-      ? []
-      : [
-          { label: `${"　".repeat(depth)}${item.regionName}`, value: item.id },
-          ...toOptions(item.children ?? [], depth + 1),
-        ],
-  );
-}
-function asRegion(value: unknown): SystemRegion {
-  return value as SystemRegion;
-}
-function filterTree(
-  items: SystemRegion[],
-  text: string,
-  selectedLevel: "" | RegionLevel,
-): SystemRegion[] {
-  return items.flatMap((item) => {
-    const children = filterTree(item.children ?? [], text, selectedLevel);
+  filterTree(regions.value, (item) => {
+    const text = keyword.value.trim().toLowerCase();
     const matchesText =
       !text ||
       `${item.regionName} ${item.regionCode} ${item.fullName ?? ""}`.toLowerCase().includes(text);
-    const matchesLevel = !selectedLevel || item.regionLevel === selectedLevel;
-    return (matchesText && matchesLevel) || children.length ? [{ ...item, children }] : [];
+    return matchesText && (!level.value || item.regionLevel === level.value);
+  }),
+);
+const parentOptions = computed(() => {
+  const options = [{ label: "顶级区域", value: "0" }];
+  walkTree(regions.value, (item, depth) => {
+    if (item.id === activeId.value) return false;
+    options.push({ label: `${"　".repeat(depth)}${item.regionName}`, value: item.id });
+    return true;
   });
+  return options;
+});
+
+onMounted(() => void load());
+
+function asRegion(value: unknown): SystemRegion {
+  return value as SystemRegion;
 }
 function levelLabel(value: RegionLevel) {
   return levelOptions.find((item) => item.value === value)?.label ?? value;

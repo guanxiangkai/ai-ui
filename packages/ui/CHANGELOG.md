@@ -1,5 +1,13 @@
 # @guanxiangkai/ui
 
+## 0.2.3
+
+### Patch Changes
+
+- 新增可组合的分页、实体与树节点类型，以及非递归树遍历、映射和筛选 API；系统管理页面统一复用树契约。
+- Updated dependencies
+  - @guanxiangkai/platform-client@0.5.0
+
 ## 0.2.2
 
 ### Patch Changes

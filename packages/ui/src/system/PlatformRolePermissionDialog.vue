@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ElButton, ElCheckbox, ElDialog, ElEmpty, ElMessage, ElTree } from "element-plus";
-import type { MenuTreeNode, SystemClient } from "@guanxiangkai/platform-client";
+import { flattenTree, type MenuTreeNode, type SystemClient } from "@guanxiangkai/platform-client";
 import { getRestorableLeafIds } from "./role-permission-tree";
 import { systemErrorMessage } from "./system-context";
 
@@ -90,7 +90,11 @@ const loadSucceeded = ref(false);
 const loadedRoleId = ref<string>();
 let loadGeneration = 0;
 
-const allIds = computed(() => collectIds(menus.value));
+const allIds = computed(() =>
+  flattenTree(menus.value)
+    .map((node) => node.id)
+    .filter(Boolean),
+);
 const checkedCount = computed(() => checkedIds.value.length);
 const allChecked = computed(
   () => allIds.value.length > 0 && checkedCount.value === allIds.value.length,
@@ -168,10 +172,6 @@ async function load() {
 
 function isCurrentLoad(generation: number, roleId: string) {
   return generation === loadGeneration && props.modelValue && props.roleId === roleId;
-}
-
-function collectIds(nodes: MenuTreeNode[]): string[] {
-  return nodes.flatMap((node) => [node.id, ...collectIds(node.children ?? [])]).filter(Boolean);
 }
 
 function normalizeKeys(keys: unknown[] = []) {
