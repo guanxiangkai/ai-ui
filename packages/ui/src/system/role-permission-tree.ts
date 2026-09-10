@@ -1,6 +1,7 @@
-interface PermissionTreeNode {
+import { flattenTree, type PlatformTreeNode } from "@guanxiangkai/platform-client";
+
+interface PermissionTreeNode extends PlatformTreeNode<PermissionTreeNode> {
   id: string;
-  children?: PermissionTreeNode[];
 }
 
 /**
@@ -20,10 +21,8 @@ export function getRestorableLeafIds(nodes: PermissionTreeNode[], selectedIds: s
 }
 
 function collectLeafIds(nodes: PermissionTreeNode[]): string[] {
-  return nodes
-    .flatMap((node) => {
-      const children = node.children ?? [];
-      return children.length ? collectLeafIds(children) : [node.id];
-    })
+  return flattenTree(nodes)
+    .filter((node) => (node.children?.length ?? 0) === 0)
+    .map((node) => node.id)
     .filter(Boolean);
 }

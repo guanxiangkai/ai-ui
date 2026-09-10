@@ -1,11 +1,10 @@
 import type { PlatformRequestClient, QueryValue } from "./types.js";
 import { digestPassword } from "./password.js";
+import type { PlatformAuditFields, PlatformIdentity, PlatformPage } from "./models.js";
+import type { PlatformTreeNode } from "./tree.js";
 
-export interface SystemPage<T> {
-  records: T[];
-  total: number;
-  pageNum?: number | undefined;
-  pageSize?: number | undefined;
+/** 系统接口分页结果，额外返回总页数。 */
+export interface SystemPage<T> extends PlatformPage<T, number | undefined> {
   pages?: number | undefined;
 }
 
@@ -16,19 +15,16 @@ export interface SystemOption {
   children?: SystemOption[];
 }
 
-export interface SystemEntity {
-  id: string;
+export interface SystemEntity extends PlatformIdentity, PlatformAuditFields {
   enabled?: boolean;
   sortOrder?: number;
-  createTime?: string;
-  updateTime?: string;
   [key: string]: unknown;
 }
 
 export type RegionLevel = "province" | "city" | "district" | "street";
 
 /** 国家行政区划目录。 */
-export interface SystemRegion extends SystemEntity {
+export interface SystemRegion extends SystemEntity, PlatformTreeNode<SystemRegion> {
   regionCode: string;
   regionName: string;
   parentId?: string;
@@ -39,7 +35,6 @@ export interface SystemRegion extends SystemEntity {
   latitude?: number;
   zipCode?: string;
   remark?: string;
-  children?: SystemRegion[];
 }
 
 export interface RegionSavePayload {
@@ -248,7 +243,7 @@ export interface SystemDepartment extends SystemEntity {
 
 export type SystemMenuType = "DIRECTORY" | "MENU" | "BUTTON";
 
-export interface SystemMenu extends SystemEntity {
+export interface SystemMenu extends SystemEntity, PlatformTreeNode<SystemMenu> {
   parentId?: string;
   menuName: string;
   menuTitle?: string;
@@ -263,7 +258,6 @@ export interface SystemMenu extends SystemEntity {
   isExternal?: boolean;
   sort?: number;
   remark?: string;
-  children?: SystemMenu[];
 }
 
 export interface SystemMenuPayload {

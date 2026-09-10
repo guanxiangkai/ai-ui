@@ -1,4 +1,5 @@
 import type { PlatformRequestClient } from "./types.js";
+import type { PlatformAuditFields, PlatformIdentity, PlatformPage } from "./models.js";
 
 /** 支持的定时表达式类型。 */
 export type SchedulerExpressionType = "CRON" | "FIXED_RATE" | "FIXED_DELAY";
@@ -7,16 +8,7 @@ export type SchedulerExpressionType = "CRON" | "FIXED_RATE" | "FIXED_DELAY";
 export type SchedulerSyncState = "PENDING" | "SYNCED" | "FAILED";
 
 /** 平台标准分页结果。 */
-export interface SchedulerPage<T> {
-  /** 当前页数据。 */
-  records: T[];
-  /** 总记录数。 */
-  total: number;
-  /** 当前页码。 */
-  pageNum?: number;
-  /** 当前页大小。 */
-  pageSize?: number;
-}
+export interface SchedulerPage<T> extends PlatformPage<T> {}
 
 /** 可调度的业务处理器目录项。 */
 export interface SchedulerHandler {
@@ -41,8 +33,7 @@ export interface SchedulerApplication {
 }
 
 /** 通用定时任务。 */
-export interface SchedulerTask {
-  id: string;
+export interface SchedulerTask extends PlatformIdentity, PlatformAuditFields<string | null> {
   taskCode: string;
   taskName: string;
   applicationCode: string;
@@ -62,8 +53,6 @@ export interface SchedulerTask {
   syncState: SchedulerSyncState;
   lastSyncTime?: string | null;
   lastSyncMessage?: string | null;
-  createTime?: string | null;
-  updateTime?: string | null;
 }
 
 /** 创建或更新任务的期望配置。 */
@@ -85,7 +74,7 @@ export interface SchedulerTaskInput {
 }
 
 /** PowerJob 执行实例的只读视图。 */
-export interface SchedulerInstance {
+export interface SchedulerInstance extends PlatformAuditFields<string | null> {
   instanceId: number;
   jobId: number;
   status: number;
@@ -98,8 +87,6 @@ export interface SchedulerInstance {
   actualTriggerTime?: string | null;
   finishedTime?: string | null;
   runningTimes?: number | null;
-  createTime?: string | null;
-  updateTime?: string | null;
 }
 
 /** 调度管理页面依赖的产品无关客户端契约。 */

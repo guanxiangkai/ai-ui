@@ -1,4 +1,10 @@
 import type { PlatformRequestClient } from "./types.js";
+import type {
+  PlatformAuditFields,
+  PlatformCreatedFields,
+  PlatformIdentity,
+  PlatformPage,
+} from "./models.js";
 
 /** 通用智能体提供方协议。 */
 export type AgentProviderType = "OPENAI_COMPATIBLE" | "DIFY";
@@ -16,16 +22,10 @@ export type AgentSessionState = "ACTIVE" | "COMPLETED" | "FAILED";
 export type AgentInvocationState = "RUNNING" | "SUCCEEDED" | "FAILED";
 
 /** 平台标准分页结果。 */
-export interface AgentPage<T> {
-  records: T[];
-  total: number;
-  pageNum?: number;
-  pageSize?: number;
-}
+export interface AgentPage<T> extends PlatformPage<T> {}
 
 /** 不含提供方密钥的智能体定义。 */
-export interface AgentDefinition {
-  id: string;
+export interface AgentDefinition extends PlatformIdentity, PlatformAuditFields<string | null> {
   agentCode: string;
   agentName: string;
   description?: string | null;
@@ -41,8 +41,6 @@ export interface AgentDefinition {
   revision: number;
   enabled: boolean;
   remark?: string | null;
-  createTime?: string | null;
-  updateTime?: string | null;
 }
 
 /** 创建或更新智能体定义的期望配置。 */
@@ -75,8 +73,7 @@ export interface AgentMessage {
 }
 
 /** 产品无关的智能体会话。 */
-export interface AgentSession {
-  id: string;
+export interface AgentSession extends PlatformIdentity, PlatformAuditFields<string | null> {
   sessionCode: string;
   agentId: string;
   agentCode: string;
@@ -89,14 +86,11 @@ export interface AgentSession {
   sessionState: AgentSessionState;
   startedAt?: string | null;
   endedAt?: string | null;
-  createTime?: string | null;
-  updateTime?: string | null;
   messages?: AgentMessage[];
 }
 
 /** 智能体调用审计。 */
-export interface AgentInvocation {
-  id: string;
+export interface AgentInvocation extends PlatformIdentity, PlatformCreatedFields<string | null> {
   invocationCode: string;
   sessionId: string;
   agentId: string;
@@ -112,12 +106,10 @@ export interface AgentInvocation {
   responseSummary?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
-  createTime?: string | null;
 }
 
 /** 语音转写审计。 */
-export interface AgentVoiceRecord {
-  id: string;
+export interface AgentVoiceRecord extends PlatformIdentity, PlatformCreatedFields<string | null> {
   sessionId?: string | null;
   userId: string;
   fileName: string;
@@ -128,7 +120,6 @@ export interface AgentVoiceRecord {
   transcript?: string | null;
   recognitionStatus: string;
   errorMessage?: string | null;
-  createTime?: string | null;
 }
 
 /** 智能体调用输入。 */

@@ -33,6 +33,14 @@ export { addAccessTokenToJsonBody, addAccessTokenToQuery, assertAccessToken } fr
 export type { AccessTokenPlacement } from "./token.js";
 export { PlatformSchedulerClient } from "./scheduler.js";
 export { PlatformSystemClient } from "./system.js";
+export { filterTree, flattenTree, mapTree, walkTree } from "./tree.js";
+export type {
+  PlatformAuditFields,
+  PlatformCreatedFields,
+  PlatformIdentity,
+  PlatformPage,
+} from "./models.js";
+export type { PlatformTreeNode } from "./tree.js";
 export type {
   SchedulerApplication,
   SchedulerClient,
