@@ -1,7 +1,7 @@
 {
   "name": "@guanxiangkai/build-config",
-  "version": "0.3.0",
-  "description": "AI UI 软件包的统一 Vite+ 库构建配置",
+  "version": "0.4.0",
+  "description": "统一 Vite+ 应用与库构建配置及可选业务制品安全能力",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -18,6 +18,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./artifact": {
+      "types": "./dist/artifact.d.mts",
+      "import": "./dist/artifact.mjs"
     }
   },
   "publishConfig": {
@@ -29,12 +33,15 @@
     "check": "vp check",
     "test": "vp test"
   },
+  "dependencies": {
+    "javascript-obfuscator": "catalog:"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "vite-plus": "^0.3.0"
+    "vite-plus": "^0.3.2"
   }
 }

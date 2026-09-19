@@ -32,7 +32,7 @@ jobs:
       - name: 配置 Vite+
         uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
-          node-version: "24.19.0"
+          node-version: "24.21.0"
           cache: true
 
       - name: 安装依赖

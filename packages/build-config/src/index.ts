@@ -1,6 +1,9 @@
 import { defineConfig } from "vite-plus";
 import type { UserConfig } from "vite-plus";
 
+export { applicationSecurity } from "./security.js";
+export type { ApplicationSecurityOptions } from "./security.js";
+
 /** 统一导出 Vite+ 应用配置入口，保持产品构建配置一致。 */
 export const defineApplicationConfig = defineConfig;
 
@@ -12,15 +15,17 @@ export interface LibraryConfigOptions {
   external?: readonly string[];
   /** 是否生成 TypeScript 声明文件，默认生成。 */
   declarations?: boolean;
+  /** 构建使用的 TypeScript 配置路径；库声明配置应仅包含待发布源码。 */
+  tsconfig?: string;
   /** 仅对当前软件包生效的 Vite+ 测试配置。 */
   test?: UserConfig["test"];
 }
 
 /**
- * 创建 Rollup external 判断器，同时识别包本身及其子路径导入。
+ * 创建 Rolldown external 判断器，同时识别包本身及其子路径导入。
  *
  * @param packages 不应打包的依赖包名。
- * @returns 可直接交给 Rollup 的判断函数。
+ * @returns 可直接交给 Rolldown 的判断函数。
  */
 export function createExternalMatcher(packages: readonly string[]): (id: string) => boolean {
   const uniquePackages = [...new Set(packages)];
@@ -39,6 +44,7 @@ export function createLibraryConfig(options: LibraryConfigOptions = {}) {
     pack: {
       entry: [...(options.entry ?? ["src/index.ts"])],
       dts: options.declarations ?? true,
+      ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
       format: ["esm"],
       sourcemap: true,
       deps: {

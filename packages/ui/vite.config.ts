@@ -18,7 +18,7 @@ export default defineConfig({
       fileName: "index",
       cssFileName: "style",
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: createExternalMatcher([
         "@guanxiangkai/platform-client",
         "@element-plus/icons-vue",
