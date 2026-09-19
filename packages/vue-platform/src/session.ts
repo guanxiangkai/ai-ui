@@ -128,9 +128,10 @@ export function createPlatformSessionStore(options: PlatformSessionStoreOptions)
     /** 替换当前会话并使此前开始的登录、刷新或注销结果失效。 */
     function replace(nextSession: AuthSession | null): void {
       advanceSessionGeneration();
-      if (nextSession === null) storage.clear();
-      else storage.write(nextSession);
-      session.value = nextSession;
+      const normalizedSession = nextSession === null ? null : normalizeSession(nextSession);
+      if (normalizedSession === null) storage.clear();
+      else storage.write(normalizedSession);
+      session.value = normalizedSession;
     }
 
     /** 使用平台认证接口登录并保存新会话。 */

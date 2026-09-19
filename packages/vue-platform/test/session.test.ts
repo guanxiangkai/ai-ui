@@ -145,6 +145,44 @@ describe("平台会话 Store", () => {
     expect(store.isAuthenticated).toBe(false);
   });
 
+  it("替换缺少绝对到期时间的会话时规范化并按默认或自定义规则到期", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", {});
+    vi.setSystemTime(0);
+    const client = { auth: {}, http: {} } as unknown as PlatformClient;
+    const replacement: AuthSession = { ...session, expiresIn: 1 };
+    delete replacement.expiresAtMs;
+    const storage = createMemorySessionStorage();
+    const defaultStore = createPlatformSessionStore({
+      client,
+      storage,
+      id: "replace-default-expiry-test",
+    })();
+
+    defaultStore.replace(replacement);
+    const normalizedSession = { ...replacement, expiresAtMs: 1_000 };
+    expect(defaultStore.session).toEqual(normalizedSession);
+    expect(storage.read()).toEqual(normalizedSession);
+    vi.advanceTimersByTime(1_000);
+    expect(defaultStore.isAuthenticated).toBe(false);
+
+    vi.setSystemTime(0);
+    const customStorage = createMemorySessionStorage();
+    const customStore = createPlatformSessionStore({
+      client,
+      storage: customStorage,
+      id: "replace-custom-expiry-test",
+      isSessionExpired: (nextSession) =>
+        nextSession.expiresAtMs === undefined || nextSession.expiresAtMs <= Date.now(),
+    })();
+
+    customStore.replace(replacement);
+    expect(customStore.session).toEqual(normalizedSession);
+    expect(customStorage.read()).toEqual(normalizedSession);
+    vi.advanceTimersByTime(1_000);
+    expect(customStore.isAuthenticated).toBe(false);
+  });
+
   it("销毁 Store 时清除到期定时器", () => {
     vi.useFakeTimers();
     vi.stubGlobal("window", {});

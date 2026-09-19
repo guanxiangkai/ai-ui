@@ -3,6 +3,7 @@
 import { createLibraryConfig } from "../build-config/src/index.js";
 
 export default createLibraryConfig({
+  tsconfig: "./tsconfig.build.json",
   external: ["@guanxiangkai/platform-client", "pinia", "vue", "vue-router"],
   test: {
     environment: "node",

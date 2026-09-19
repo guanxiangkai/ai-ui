@@ -36,9 +36,17 @@ export interface PlatformWindowSessionTransportOptions<TSession> {
 
 /** 可选的跨窗口会话传输器。 */
 export interface PlatformWindowSessionTransport<TSession> {
-  /** 向已校验目标窗口发送当前会话或清除信号。 */
+  /**
+   * 向已校验目标窗口发送当前会话或清除信号。
+   *
+   * 同一传输器会按调用顺序完成保护和发送；调用时会固定载荷，之后对传入对象的修改不会影响消息。
+   */
   publish(session: TSession | null): Promise<void>;
-  /** 订阅来自指定窗口与精确 Origin 的会话消息。 */
+  /**
+   * 订阅来自指定窗口与精确 Origin 的会话消息。
+   *
+   * 单个订阅会按本窗口接收事件的到达顺序依次打开并通知，后续消息会等待前一条消息完成。
+   */
   subscribe(listener: (session: TSession | null) => void): () => void;
 }
 
@@ -111,26 +119,44 @@ export function createWindowSessionTransport<TSession>(
       : content;
   }
 
+  let publishQueue = Promise.resolve();
+
   return {
     async publish(session) {
-      const content = await protect(serializeSession(session));
-      const message: SessionMessage = { type: MESSAGE_TYPE, content };
-      options.targetWindow.postMessage(message, options.targetOrigin);
+      const plaintext = serializeSession(session);
+      const operation = publishQueue.then(async () => {
+        const content = await protect(plaintext);
+        const message: SessionMessage = { type: MESSAGE_TYPE, content };
+        options.targetWindow.postMessage(message, options.targetOrigin);
+      });
+      publishQueue = operation.catch(() => undefined);
+      return operation;
     },
     subscribe(listener) {
+      let subscribed = true;
+      let receiveQueue = Promise.resolve();
       const receive = (event: MessageEvent<unknown>) => {
         if (event.origin !== options.targetOrigin || event.source !== options.targetWindow) return;
         if (!isSessionMessage(event.data)) return;
 
-        void unprotect(event.data.content)
-          .then((content) => {
+        const { content: encryptedContent } = event.data;
+        receiveQueue = receiveQueue.then(async () => {
+          if (!subscribed) return;
+          try {
+            const content = await unprotect(encryptedContent);
+            if (!subscribed) return;
             const session = deserializeSession(content, options.codec);
             if (session !== undefined) listener(session);
-          })
-          .catch(() => undefined);
+          } catch {
+            // 单条消息解封、解析或订阅回调失败时继续处理后续消息。
+          }
+        });
       };
       window.addEventListener("message", receive);
-      return () => window.removeEventListener("message", receive);
+      return () => {
+        subscribed = false;
+        window.removeEventListener("message", receive);
+      };
     },
   };
 }

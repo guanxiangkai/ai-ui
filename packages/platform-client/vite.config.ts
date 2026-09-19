@@ -3,6 +3,7 @@
 import { createLibraryConfig } from "../build-config/src/index.js";
 
 export default createLibraryConfig({
+  tsconfig: "./tsconfig.build.json",
   test: {
     environment: "node",
     include: ["test/**/*.test.ts"],

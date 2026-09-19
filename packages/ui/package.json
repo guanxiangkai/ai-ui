@@ -46,7 +46,7 @@
     "@vue/test-utils": "catalog:",
     "element-plus": "catalog:",
     "happy-dom": "catalog:",
-    "typescript": "catalog:",
+    "typescript": "catalog:vueCompiler",
     "unplugin-dts": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:",
