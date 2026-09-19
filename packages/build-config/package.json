@@ -1,6 +1,6 @@
 {
   "name": "@guanxiangkai/build-config",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "统一 Vite+ 应用与库构建配置及可选业务制品安全能力",
   "license": "Apache-2.0",
   "repository": {
