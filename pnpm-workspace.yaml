@@ -9,7 +9,7 @@ catalog:
   "@vue/compiler-sfc": 3.5.43
   "@vue/language-core": 3.3.11
   "@vue/test-utils": 2.5.1
-  element-plus: 2.14.5
+  element-plus: 2.14.6
   happy-dom: 20.14.5
   javascript-obfuscator: 5.7.0
   pinia: 4.0.3
