@@ -34,8 +34,8 @@ catalogs:
       specifier: 20.14.5
       version: 20.14.5
     javascript-obfuscator:
-      specifier: 5.7.0
-      version: 5.7.0
+      specifier: 5.8.0
+      version: 5.8.0
     pinia:
       specifier: 4.0.3
       version: 4.0.3
@@ -92,7 +92,7 @@ importers:
     dependencies:
       javascript-obfuscator:
         specifier: 'catalog:'
-        version: 5.7.0
+        version: 5.8.0
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -1714,8 +1714,8 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
-  javascript-obfuscator@5.7.0:
-    resolution: {integrity: sha512-3YHwZ/OLnd92zpEeQivIfqgvFvOd7wiomAihVGv4XoA0Lq0VNxep0TheKxnzoNn4ZrrNycGhaSVZ3A8yP3deig==}
+  javascript-obfuscator@5.8.0:
+    resolution: {integrity: sha512-hqNOm+oeDBEhO1uH+Ff5lxTH7sMSAptVn9B/lRpbFYw/5P7mtaaE5pb+9xIan61oPaawg+NwHnRLwgDYcxx7kA==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -3826,7 +3826,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  javascript-obfuscator@5.7.0:
+  javascript-obfuscator@5.8.0:
     dependencies:
       '@javascript-obfuscator/escodegen': 2.4.2
       '@javascript-obfuscator/estraverse': 5.4.0
