@@ -38,9 +38,5 @@ overrides:
   vite: "catalog:"
   vitest: "catalog:"
 
-peerDependencyRules:
-  allowAny:
-    - vitest
-
 registries:
   "@guanxiangkai": https://registry.npmjs.org/
