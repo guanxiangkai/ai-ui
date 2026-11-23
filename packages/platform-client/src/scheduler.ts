@@ -91,13 +91,16 @@ export interface SchedulerInstance extends PlatformAuditFields<string | null> {
 
 /** 调度管理页面依赖的产品无关客户端契约。 */
 export interface SchedulerClient {
-  applications(): Promise<SchedulerApplication[]>;
-  tasks(query: {
-    page: number;
-    size: number;
-    keyword?: string;
-    enabled?: boolean;
-  }): Promise<SchedulerPage<SchedulerTask>>;
+  applications(options?: { signal?: AbortSignal }): Promise<SchedulerApplication[]>;
+  tasks(
+    query: {
+      page: number;
+      size: number;
+      keyword?: string;
+      enabled?: boolean;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<SchedulerPage<SchedulerTask>>;
   create(input: SchedulerTaskInput): Promise<SchedulerTask>;
   update(id: string, input: SchedulerTaskInput): Promise<SchedulerTask>;
   changeEnabled(id: string, enabled: boolean): Promise<SchedulerTask>;
@@ -106,6 +109,7 @@ export interface SchedulerClient {
   instances(
     id: string,
     query: { page: number; size: number },
+    options?: { signal?: AbortSignal },
   ): Promise<SchedulerPage<SchedulerInstance>>;
   delete(id: string): Promise<boolean>;
 }
@@ -123,17 +127,20 @@ export class PlatformSchedulerClient implements SchedulerClient {
     private readonly basePath = "/scheduler",
   ) {}
 
-  applications(): Promise<SchedulerApplication[]> {
-    return this.http.request(`${this.basePath}/applications`);
+  applications(options?: { signal?: AbortSignal }): Promise<SchedulerApplication[]> {
+    return this.http.request(`${this.basePath}/applications`, options);
   }
 
-  tasks(query: {
-    page: number;
-    size: number;
-    keyword?: string;
-    enabled?: boolean;
-  }): Promise<SchedulerPage<SchedulerTask>> {
-    return this.http.request(`${this.basePath}/tasks`, { query });
+  tasks(
+    query: {
+      page: number;
+      size: number;
+      keyword?: string;
+      enabled?: boolean;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<SchedulerPage<SchedulerTask>> {
+    return this.http.request(`${this.basePath}/tasks`, { ...options, query });
   }
 
   create(input: SchedulerTaskInput): Promise<SchedulerTask> {
@@ -170,8 +177,10 @@ export class PlatformSchedulerClient implements SchedulerClient {
   instances(
     id: string,
     query: { page: number; size: number },
+    options?: { signal?: AbortSignal },
   ): Promise<SchedulerPage<SchedulerInstance>> {
     return this.http.request(`${this.basePath}/tasks/${encodeURIComponent(id)}/instances`, {
+      ...options,
       query,
     });
   }

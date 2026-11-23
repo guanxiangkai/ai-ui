@@ -37,7 +37,10 @@ describe("PlatformScheduler", () => {
     expect(wrapper.text()).toContain("示例定时任务");
     expect(wrapper.text()).toContain("当前系统还没有登记可执行的业务处理器");
     expect(client.applications).toHaveBeenCalledOnce();
-    expect(client.tasks).toHaveBeenCalledWith({ page: 1, size: 20 });
+    expect(client.tasks).toHaveBeenCalledWith(
+      { page: 1, size: 20 },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it("任务记录视图只加载任务供筛选，选择任务后才加载该任务的执行记录", async () => {
@@ -95,6 +98,10 @@ describe("PlatformScheduler", () => {
     await flushPromises();
 
     expect(client.tasks).toHaveBeenCalledTimes(1);
-    expect(client.instances).toHaveBeenCalledWith("task-1", { page: 1, size: 20 });
+    expect(client.instances).toHaveBeenCalledWith(
+      "task-1",
+      { page: 1, size: 20 },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 });

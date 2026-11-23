@@ -7,15 +7,16 @@ describe("PlatformSchedulerClient", () => {
   it("将调度查询和变更统一映射到平台 API", async () => {
     const transport = new RecordingTransport();
     const client = new PlatformSchedulerClient(transport);
+    const signal = new AbortController().signal;
 
-    await client.tasks({ page: 2, size: 50, keyword: "weekly", enabled: true });
+    await client.tasks({ page: 2, size: 50, keyword: "weekly", enabled: true }, { signal });
     await client.changeEnabled("task/1", false);
     await client.run("task/1", '{"force":true}');
 
     expect(transport.calls).toEqual([
       {
         path: "/scheduler/tasks",
-        options: { query: { page: 2, size: 50, keyword: "weekly", enabled: true } },
+        options: { signal, query: { page: 2, size: 50, keyword: "weekly", enabled: true } },
       },
       {
         path: "/scheduler/tasks/task%2F1/enabled",

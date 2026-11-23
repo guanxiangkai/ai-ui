@@ -1,6 +1,10 @@
 import { onScopeDispose, ref, type Ref } from "vue";
 
-import { LatestRequestPolicy, type RequestCommitPolicy } from "./latest-request-policy.js";
+import {
+  LatestRequestPolicy,
+  type RequestCommitPolicy,
+  type RequestToken,
+} from "./latest-request-policy.js";
 
 /** 仅处理最新一次异步请求的回调。 */
 export interface LatestRequestCallbacks<T> {
@@ -17,11 +21,14 @@ export interface LatestRequestController {
   /**
    * 执行请求，只允许当前最新的一次请求提交成功或失败状态。
    *
-   * @param request 不应直接修改页面状态的异步请求。
+   * @param request 不应直接修改页面状态的异步请求；可使用 signal 主动取消底层 Fetch。
    * @param callbacks 最新请求完成后的状态提交回调。
    * @returns 当前请求是否作为最新请求完成并提交了结果。
    */
-  run<T>(request: () => Promise<T>, callbacks: LatestRequestCallbacks<T>): Promise<boolean>;
+  run<T>(
+    request: (signal: AbortSignal) => Promise<T>,
+    callbacks: LatestRequestCallbacks<T>,
+  ): Promise<boolean>;
   /** 使当前请求立即失效；适用于关闭弹窗或清空查询条件。 */
   invalidate(): void;
 }
@@ -38,22 +45,41 @@ export function useLatestRequest(
   policy: RequestCommitPolicy = new LatestRequestPolicy(),
 ): LatestRequestController {
   const loading = ref(false);
+  const inFlight = new Map<RequestToken, AbortController>();
+  let disposed = false;
 
   function invalidate(): void {
+    const controllers = [...inFlight.values()];
+    inFlight.clear();
     policy.invalidate();
     loading.value = false;
+    for (const controller of controllers) controller.abort();
   }
 
   async function run<T>(
-    request: () => Promise<T>,
+    request: (signal: AbortSignal) => Promise<T>,
     callbacks: LatestRequestCallbacks<T>,
   ): Promise<boolean> {
+    if (disposed) return false;
     const token = policy.begin();
+    const controller = new AbortController();
+    inFlight.set(token, controller);
     loading.value = true;
+    const previousRequests = [...inFlight.entries()];
+    for (const [previousToken, previousController] of previousRequests) {
+      if (previousToken !== token && !policy.canCommit(previousToken)) {
+        inFlight.delete(previousToken);
+        previousController.abort();
+      }
+    }
+    // 取消监听器可能同步启动新请求或使当前请求失效，重入后禁止旧请求继续提交回调。
+    if (!inFlight.has(token) || controller.signal.aborted) {
+      return false;
+    }
     try {
       let value: T;
       try {
-        value = await request();
+        value = await request(controller.signal);
       } catch (error: unknown) {
         if (!policy.canCommit(token)) return false;
         callbacks.onError(error);
@@ -63,10 +89,14 @@ export function useLatestRequest(
       callbacks.onSuccess(value);
       return true;
     } finally {
-      if (policy.canCommit(token)) loading.value = false;
+      inFlight.delete(token);
+      loading.value = inFlight.size > 0;
     }
   }
 
-  onScopeDispose(invalidate);
+  onScopeDispose(() => {
+    disposed = true;
+    invalidate();
+  });
   return { loading, run, invalidate };
 }

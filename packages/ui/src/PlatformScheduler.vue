@@ -88,7 +88,7 @@ async function loadTasks(): Promise<void> {
   if (filters.keyword.trim().length > 0) query.keyword = filters.keyword.trim();
   const enabled = enabledQuery();
   if (enabled !== undefined) query.enabled = enabled;
-  await taskRequest.run(() => props.client.tasks(query), {
+  await taskRequest.run((signal) => props.client.tasks(query, { signal }), {
     onSuccess: (result) => {
       tasks.value = result.records;
       total.value = result.total;
@@ -216,11 +216,15 @@ async function loadInstances(): Promise<void> {
   if (instanceTask.value === null) return;
   const taskId = instanceTask.value.id;
   await instanceRequest.run(
-    () =>
-      props.client.instances(taskId, {
-        page: instancePage.value,
-        size: instancePageSize.value,
-      }),
+    (signal) =>
+      props.client.instances(
+        taskId,
+        {
+          page: instancePage.value,
+          size: instancePageSize.value,
+        },
+        { signal },
+      ),
     {
       onSuccess: (result) => {
         instances.value = result.records;

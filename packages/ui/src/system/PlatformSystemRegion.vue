@@ -8,16 +8,13 @@
       </div>
       <div class="system-stat-grid">
         <article>
-          <small>区域总数</small><strong>{{ flatRegions.length }}</strong
-          ><span>当前查询范围</span>
+          <small>区域总数</small><strong>{{ flatRegions.length }}</strong><span>当前查询范围</span>
         </article>
         <article>
-          <small>已启用</small><strong>{{ enabledCount }}</strong
-          ><span>可供业务选择</span>
+          <small>已启用</small><strong>{{ enabledCount }}</strong><span>可供业务选择</span>
         </article>
         <article>
-          <small>根节点</small><strong>{{ regions.length }}</strong
-          ><span>顶级行政区</span>
+          <small>根节点</small><strong>{{ regions.length }}</strong><span>顶级行政区</span>
         </article>
       </div>
     </section>

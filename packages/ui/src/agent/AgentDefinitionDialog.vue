@@ -17,7 +17,7 @@ import {
   ElSelect,
   ElSwitch,
 } from "element-plus";
-import { computed, reactive, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { AgentSelectOption as AgentOption } from "./AgentSelectOption.js";
 
@@ -54,7 +54,7 @@ const visible = computed({
   set: (value: boolean) => emit("update:modelValue", value),
 });
 const saving = ref(false);
-const form = reactive<AgentEditorForm>(emptyForm());
+const form = ref(emptyForm());
 
 function emptyForm(): AgentEditorForm {
   return {
@@ -77,48 +77,47 @@ function emptyForm(): AgentEditorForm {
 
 function resetForm(): void {
   const definition = props.definition;
-  Object.assign(
-    form,
-    definition
-      ? {
-          agentCode: definition.agentCode,
-          agentName: definition.agentName,
-          description: definition.description ?? "",
-          providerType: definition.providerType,
-          invocationMode: definition.invocationMode,
-          endpointUrl: definition.endpointUrl,
-          modelName: definition.modelName ?? "",
-          credential: "",
-          systemPrompt: definition.systemPrompt ?? "",
-          temperature: definition.temperature ?? 0.7,
-          runtimeConfig: definition.runtimeConfig ?? "{}",
-          publishState: definition.publishState,
-          enabled: definition.enabled,
-          remark: definition.remark ?? "",
-        }
-      : emptyForm(),
-  );
+  form.value = definition
+    ? {
+        agentCode: definition.agentCode,
+        agentName: definition.agentName,
+        description: definition.description ?? "",
+        providerType: definition.providerType,
+        invocationMode: definition.invocationMode,
+        endpointUrl: definition.endpointUrl,
+        modelName: definition.modelName ?? "",
+        credential: "",
+        systemPrompt: definition.systemPrompt ?? "",
+        temperature: definition.temperature ?? 0.7,
+        runtimeConfig: definition.runtimeConfig ?? "{}",
+        publishState: definition.publishState,
+        enabled: definition.enabled,
+        remark: definition.remark ?? "",
+      }
+    : emptyForm();
 }
 
 function validateForm(): string | null {
-  if (!/^[A-Za-z][A-Za-z0-9_.-]{2,127}$/u.test(form.agentCode.trim())) {
+  if (!/^[A-Za-z][A-Za-z0-9_.-]{2,127}$/u.test(form.value.agentCode.trim())) {
     return "智能体编码需以字母开头，至少 3 位，且只能包含字母、数字、点、下划线和短横线";
   }
-  if (!form.agentName.trim()) return "请输入智能体名称";
-  if (!/^https?:\/\//iu.test(form.endpointUrl.trim())) return "请输入完整的 HTTP 或 HTTPS 接入地址";
-  if (form.providerType === "OPENAI_COMPATIBLE" && !form.modelName.trim()) return "请输入模型名称";
-  if (form.providerType === "OPENAI_COMPATIBLE" && form.invocationMode === "WORKFLOW") {
+  if (!form.value.agentName.trim()) return "请输入智能体名称";
+  if (!/^https?:\/\//iu.test(form.value.endpointUrl.trim()))
+    return "请输入完整的 HTTP 或 HTTPS 接入地址";
+  if (form.value.providerType === "OPENAI_COMPATIBLE" && !form.value.modelName.trim())
+    return "请输入模型名称";
+  if (form.value.providerType === "OPENAI_COMPATIBLE" && form.value.invocationMode === "WORKFLOW") {
     return "OpenAI Chat Completions 协议不支持工作流模式";
   }
   if (
-    form.publishState === "PUBLISHED" &&
-    !form.credential.trim() &&
+    form.value.publishState === "PUBLISHED" &&
+    !form.value.credential.trim() &&
     !props.definition?.credentialConfigured
   ) {
     return "发布前必须配置提供方密钥";
   }
   try {
-    const config = JSON.parse(form.runtimeConfig || "{}") as unknown;
+    const config = JSON.parse(form.value.runtimeConfig || "{}") as unknown;
     if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error();
   } catch {
     return "运行扩展配置必须是 JSON 对象";
@@ -128,20 +127,20 @@ function validateForm(): string | null {
 
 function formInput(): AgentDefinitionInput {
   return {
-    agentCode: form.agentCode.trim(),
-    agentName: form.agentName.trim(),
-    description: form.description.trim() || null,
-    providerType: form.providerType,
-    invocationMode: form.invocationMode,
-    endpointUrl: form.endpointUrl.trim(),
-    modelName: form.modelName.trim() || null,
-    ...(form.credential.trim() ? { credential: form.credential.trim() } : {}),
-    systemPrompt: form.systemPrompt.trim() || null,
-    temperature: form.temperature,
-    runtimeConfig: JSON.stringify(JSON.parse(form.runtimeConfig || "{}")),
-    publishState: form.publishState,
-    enabled: form.enabled,
-    remark: form.remark.trim() || null,
+    agentCode: form.value.agentCode.trim(),
+    agentName: form.value.agentName.trim(),
+    description: form.value.description.trim() || null,
+    providerType: form.value.providerType,
+    invocationMode: form.value.invocationMode,
+    endpointUrl: form.value.endpointUrl.trim(),
+    modelName: form.value.modelName.trim() || null,
+    ...(form.value.credential.trim() ? { credential: form.value.credential.trim() } : {}),
+    systemPrompt: form.value.systemPrompt.trim() || null,
+    temperature: form.value.temperature,
+    runtimeConfig: JSON.stringify(JSON.parse(form.value.runtimeConfig || "{}")),
+    publishState: form.value.publishState,
+    enabled: form.value.enabled,
+    remark: form.value.remark.trim() || null,
   };
 }
 
