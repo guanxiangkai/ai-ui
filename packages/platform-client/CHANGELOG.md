@@ -1,5 +1,11 @@
 # @guanxiangkai/platform-client
 
+## 0.6.0
+
+### Minor Changes
+
+- aed9e7e: 构建配置要求 Vite+ 1.7，工具链配套升级到 Vitest 5.1、Node.js 26 LTS 和 pnpm 12。同步升级 Vue 与 SFC 编译器至 3.5.46。页面查询回调可将 AbortSignal 传给请求层，取消已失效的请求。
+
 ## 0.5.0
 
 ### Minor Changes

@@ -49,5 +49,11 @@ jobs:
       - name: 安装依赖
         run: vp install --frozen-lockfile
 
+      - name: 审计工作区依赖
+        run: vp pm audit
+
+      - name: 验证 js-beautify 的 glob 与 editorconfig
+        run: node scripts/verify-beautify.mjs
+
       - name: 执行质量门禁
         run: vp run ready
