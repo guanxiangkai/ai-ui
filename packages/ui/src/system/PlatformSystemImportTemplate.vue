@@ -8,16 +8,13 @@
       </div>
       <div class="system-stat-grid">
         <article>
-          <small>模板数</small><strong>{{ templates.total }}</strong
-          ><span>当前租户</span>
+          <small>模板数</small><strong>{{ templates.total }}</strong><span>当前租户</span>
         </article>
         <article>
-          <small>已启用</small><strong>{{ enabledCount }}</strong
-          ><span>可用导入定义</span>
+          <small>已启用</small><strong>{{ enabledCount }}</strong><span>可用导入定义</span>
         </article>
         <article>
-          <small>字段映射</small><strong>{{ mappings.total }}</strong
-          ><span>当前模板</span>
+          <small>字段映射</small><strong>{{ mappings.total }}</strong><span>当前模板</span>
         </article>
       </div>
     </section>
@@ -125,9 +122,7 @@
             ><template #default="{ row }">{{ row.title.join(" / ") }}</template></el-table-column
           >
           <el-table-column prop="field" label="目标字段" min-width="130"
-            ><template #default="{ row }"
-              ><code>{{ row.field }}</code></template
-            ></el-table-column
+            ><template #default="{ row }"><code>{{ row.field }}</code></template></el-table-column
           >
           <el-table-column prop="dataType" label="数据类型" width="130" />
           <el-table-column label="必填" width="70"

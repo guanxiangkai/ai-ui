@@ -8,16 +8,13 @@
       </div>
       <div class="system-stat-grid">
         <article>
-          <small>消息总数</small><strong>{{ page.total }}</strong
-          ><span>当前查询范围</span>
+          <small>消息总数</small><strong>{{ page.total }}</strong><span>当前查询范围</span>
         </article>
         <article>
-          <small>未读数</small><strong>{{ unreadCount }}</strong
-          ><span>需要处理</span>
+          <small>未读数</small><strong>{{ unreadCount }}</strong><span>需要处理</span>
         </article>
         <article>
-          <small>公告数</small><strong>{{ notices.length }}</strong
-          ><span>当前展示</span>
+          <small>公告数</small><strong>{{ notices.length }}</strong><span>当前展示</span>
         </article>
       </div>
     </section>

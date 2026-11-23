@@ -146,4 +146,157 @@ describe("useLatestRequest", () => {
     await expect(second).resolves.toBe(true);
     scope.stop();
   });
+
+  it("取消监听器重入时不会覆盖新请求", async () => {
+    const scope = effectScope();
+    const controller = scope.run(useLatestRequest)!;
+    const first = deferred<string>();
+    const commits: string[] = [];
+
+    const firstRun = controller.run(
+      (signal) => {
+        signal.addEventListener("abort", () => {
+          void controller.run(async () => "重入结果", {
+            onSuccess: (value) => commits.push(value),
+            onError: vi.fn(),
+          });
+        });
+        return first.promise;
+      },
+      { onSuccess: (value) => commits.push(value), onError: vi.fn() },
+    );
+
+    const secondRun = controller.run(async () => "第二个结果", {
+      onSuccess: (value) => commits.push(value),
+      onError: vi.fn(),
+    });
+
+    first.resolve("旧结果");
+    expect(await firstRun).toBe(false);
+    expect(await secondRun).toBe(false);
+    expect(commits).toEqual(["重入结果"]);
+    expect(controller.loading.value).toBe(false);
+    scope.stop();
+  });
+
+  it("失效监听器重入时保留重入请求", async () => {
+    const scope = effectScope();
+    const controller = scope.run(useLatestRequest)!;
+    const commits: string[] = [];
+    const first = deferred<string>();
+    const running = controller.run(
+      (signal) => {
+        signal.addEventListener("abort", () => {
+          void controller.run(async () => "重入结果", {
+            onSuccess: (value) => commits.push(value),
+            onError: vi.fn(),
+          });
+          first.reject(signal.reason);
+        });
+        return first.promise;
+      },
+      { onSuccess: vi.fn(), onError: vi.fn() },
+    );
+
+    controller.invalidate();
+    await expect(running).resolves.toBe(false);
+    expect(commits).toEqual(["重入结果"]);
+    expect(controller.loading.value).toBe(false);
+    controller.invalidate();
+    scope.stop();
+  });
+
+  it("不会在请求启动前询问自定义策略的提交资格", async () => {
+    let requestStarted = false;
+    const policy: RequestCommitPolicy = {
+      begin: () => 1,
+      canCommit: () => {
+        expect(requestStarted).toBe(true);
+        return true;
+      },
+      invalidate: vi.fn(),
+    };
+    const scope = effectScope();
+    const controller = scope.run(() => useLatestRequest(policy))!;
+
+    await expect(
+      controller.run(
+        async () => {
+          requestStarted = true;
+          return "完成";
+        },
+        { onSuccess: vi.fn(), onError: vi.fn() },
+      ),
+    ).resolves.toBe(true);
+    scope.stop();
+  });
+
+  it("组件卸载期间的取消监听器不会重新启动请求", async () => {
+    const scope = effectScope();
+    const controller = scope.run(useLatestRequest)!;
+    const first = deferred<string>();
+    let sentSignal!: AbortSignal;
+    const request = vi.fn((signal: AbortSignal) => {
+      sentSignal = signal;
+      signal.addEventListener("abort", () => {
+        void controller.run(async () => "不应启动", {
+          onSuccess: vi.fn(),
+          onError: vi.fn(),
+        });
+        first.reject(signal.reason);
+      });
+      return first.promise;
+    });
+    const running = controller.run(request, { onSuccess: vi.fn(), onError: vi.fn() });
+    scope.stop();
+    expect(sentSignal.aborted).toBe(true);
+    await expect(running).resolves.toBe(false);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("允许并发策略时旧请求完成不会清掉最新加载状态", async () => {
+    let nextToken = 0;
+    const policy: RequestCommitPolicy = {
+      begin: () => ++nextToken,
+      canCommit: () => true,
+      invalidate: vi.fn(),
+    };
+    const scope = effectScope();
+    const controller = scope.run(() => useLatestRequest(policy))!;
+    const first = deferred<string>();
+    const second = deferred<string>();
+    const firstRun = controller.run(() => first.promise, { onSuccess: vi.fn(), onError: vi.fn() });
+    const secondRun = controller.run(() => second.promise, {
+      onSuccess: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    first.resolve("先完成");
+    await expect(firstRun).resolves.toBe(true);
+    expect(controller.loading.value).toBe(true);
+    second.resolve("后完成");
+    await expect(secondRun).resolves.toBe(true);
+    expect(controller.loading.value).toBe(false);
+    scope.stop();
+  });
+
+  it("最新请求完成后不等待已取消且未结束的旧请求", async () => {
+    const scope = effectScope();
+    const controller = scope.run(useLatestRequest)!;
+    const first = deferred<string>();
+    const firstRun = controller.run(() => first.promise, {
+      onSuccess: vi.fn(),
+      onError: vi.fn(),
+    });
+    const secondRun = controller.run(async () => "最新结果", {
+      onSuccess: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    await expect(secondRun).resolves.toBe(true);
+    expect(controller.loading.value).toBe(false);
+    first.reject(new Error("旧请求最终结束"));
+    await expect(firstRun).resolves.toBe(false);
+    scope.stop();
+  });
 });

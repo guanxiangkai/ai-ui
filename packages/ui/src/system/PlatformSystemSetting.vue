@@ -14,12 +14,10 @@
           ><span>当前显示偏好</span>
         </article>
         <article>
-          <small>通知渠道</small><strong>{{ enabledNotifications }}</strong
-          ><span>已开启</span>
+          <small>通知渠道</small><strong>{{ enabledNotifications }}</strong><span>已开启</span>
         </article>
         <article>
-          <small>扩展命名空间</small><strong>{{ extensionCount }}</strong
-          ><span>产品隔离</span>
+          <small>扩展命名空间</small><strong>{{ extensionCount }}</strong><span>产品隔离</span>
         </article>
       </div>
     </section>
@@ -135,7 +133,7 @@ const enabledNotifications = computed(
 const extensionCount = computed(() => Object.keys(form.extensions).length);
 const themeLabel = computed(
   () =>
-    (({ light: "浅色", dark: "深色", system: "跟随" }) as Record<string, string>)[form.theme] ??
+    ({ light: "浅色", dark: "深色", system: "跟随" } as Record<string, string>)[form.theme] ??
     form.theme,
 );
 onMounted(() => void load());

@@ -65,9 +65,7 @@
         <el-table-column type="index" label="序号" width="66" align="center" />
         <el-table-column prop="dictLabel" label="字典标签" min-width="170" />
         <el-table-column label="字典类型" min-width="200">
-          <template #default="{ row }"
-            ><code>{{ asDict(row).dictType }}</code></template
-          >
+          <template #default="{ row }"><code>{{ asDict(row).dictType }}</code></template>
         </el-table-column>
         <el-table-column prop="dictValue" label="字典值" min-width="150" />
         <el-table-column prop="itemCount" label="字典项" width="90" align="center" />
@@ -191,9 +189,7 @@
     <el-table v-loading="itemsLoading" :data="itemPage.records" stripe>
       <el-table-column prop="itemLabel" label="显示标签" min-width="150" />
       <el-table-column label="字典项值" min-width="150">
-        <template #default="{ row }"
-          ><code>{{ asItem(row).itemValue }}</code></template
-        >
+        <template #default="{ row }"><code>{{ asItem(row).itemValue }}</code></template>
       </el-table-column>
       <el-table-column label="默认" width="82" align="center">
         <template #default="{ row }">
