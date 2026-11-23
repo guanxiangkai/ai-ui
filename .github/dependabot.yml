@@ -19,17 +19,20 @@ updates:
     groups:
       frontend-toolchain:
         patterns:
+          - "vite-plus"
           - "@voidzero-dev/*"
-          - typescript
-          - vite-plus
-          - vitest
+          - "vitest"
+          - "typescript"
+          - "@types/node"
       vue-platform:
         patterns:
-          - vue
+          - "vue"
+          - "vue-router"
+          - "pinia"
           - "@vue/*"
-          - pinia
-          - vue-router
-          - element-plus
+          - "@vitejs/plugin-vue"
+          - "element-plus"
+          - "@element-plus/*"
   - package-ecosystem: github-actions
     directory: /
     schedule:

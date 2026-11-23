@@ -24,11 +24,11 @@ AI UI 是面向通用 AI 应用的前端基础组件库。仓库采用 pnpm mono
 
 ## 技术基线
 
-- Node.js 24.21.0 LTS
-- pnpm 11.27.0
+- Node.js 26.13.1 LTS
+- pnpm 12.21.0
 - TypeScript 7.0.2（根工具链及纯 TS 包）；Vue UI 包使用 TypeScript 6.0.3 编译器 API
 - Vue 3.5、Pinia 4、Vue Router 5
-- Vite+ 0.3.2（Vite 8.3、Vitest 4.1、Oxlint、Oxfmt、tsdown、Vite Task）
+- Vite+ 1.7.0（Vite 8.3、Vitest 5.1、Oxlint、Oxfmt、tsdown、Vite Task）
 - Element Plus 2.14
 
 所有版本均锁定在 workspace catalog、根目录和各软件包的 `package.json` 中。pnpm 使用严格的
@@ -63,42 +63,12 @@ vp run ready
 | 页面查询     | 列表、详情、选项等独立使用 `useLatestRequest` 和 `RequestCommitPolicy`            | 统一乱序结果、错误与 loading 的提交逻辑，关闭弹窗和卸载会使在途结果失效          |
 | 构建与发布包 | Vite+ 统一工具链，unplugin-dts 处理 Vue 类型，publint 检查 npm 产物               | 使用成熟第三方处理编译与打包规则，排除测试声明和重复打包的依赖                   |
 
-### 依赖与架构选择依据（2026-09-18）
+### 依赖与架构选择依据（2026-11-23）
 
-本次按 npm 官方元数据、维护者发布说明和兼容性核验版本，并保留 24 小时依赖隔离。
-“上游最新”记录的是核验时状态，实际安装版本以 catalog 与锁文件为准。
-
-| 依赖                                                                         | 本次版本                                                | 选择依据                                                                           |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Node.js / Node 类型                                                          | 24.21.0 / 24.13.5                                       | 跟进 Node 24 LTS，保持类型代际一致；不切换非 LTS 的 Node 26                        |
-| pnpm                                                                         | 11.27.0                                                 | 采用 11.x 当前稳定版，包含 workspace peer 与安装修复；12.4.2 的跨代迁移单独评估    |
-| Vite+ / 内置 Vite core                                                       | 0.3.2 / 0.3.2                                           | 同步升级；0.3.3 发布未满 24 小时，暂不采用                                         |
-| Vue / SFC 编译器                                                             | 3.5.43 / 3.5.43                                         | 同步升级补丁，避免运行时与编译器错配                                               |
-| Vue 插件 / Test Utils / Happy DOM                                            | 6.0.9 / 2.5.1 / 20.14.5                                 | 采用已过隔离期的修复版本                                                           |
-| Changesets                                                                   | 3.0.3                                                   | 修复更新内部依赖时截断 semver 范围的问题                                           |
-| TypeScript / Vitest                                                          | 7.0.2 / 4.1.11                                          | 默认使用 TypeScript 7，测试继续使用 Vite+ 内置版本                                 |
-| Vue UI 包的 TypeScript                                                       | 6.0.3                                                   | 通过 `catalog:vueCompiler` 固定 SFC 宏解析和声明生成所需的 JavaScript Compiler API |
-| Element Plus                                                                 | 2.14.5                                                  | 2.14.6 发布未满 24 小时，暂不采用                                                  |
-| Pinia / Router / language-core / unplugin-dts / publint / icons / obfuscator | 4.0.3 / 5.3.1 / 3.3.11 / 1.1.0 / 0.3.24 / 2.3.2 / 5.7.0 | 核验时已是对应包的稳定最新版本                                                     |
-
-- [Node 24.21.0 官方博客](https://nodejs.org/en/blog/release/v24.21.0)列出 OpenSSL、Undici 与根证书更新；
-  [pnpm 11.27.0 发布说明](https://github.com/pnpm/pnpm/releases/tag/v11.27.0)提供当前代际的安装与 workspace 修复。
-- [Vite+ 0.3.2 发布说明](https://github.com/voidzero-dev/vite-plus/releases/tag/v0.3.2)确认内置 Vitest 仍为 `4.1.11`；
-  按 [Vite 迁移指南](https://vite.dev/guide/migration)使用 `rolldownOptions`，移除 UI 构建中已弃用的 `rollupOptions`。
-- [TypeScript 7 官方博客](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)说明 Vue/Volar
-  仍依赖 TypeScript 6 的 JavaScript Compiler API。默认 catalog 使用 `7.0.2`，供根工具链与
-  `build-config`、`platform-client`、`vue-platform` 使用；`packages/ui` 通过命名 catalog
-  `vueCompiler` 使用 `6.0.3`，同时支持导入 Props 类型的 SFC 宏解析和 Vue 声明生成。
-  构建、检查、测试仍统一通过 Vite+ 执行。Vite+ 对 TypeScript 7 的声明后端仍提示实验性 API，
-  升级时须验证完整门禁及生成声明的兼容性。
-- [Vue 更新记录](https://github.com/vuejs/core/blob/v3.5.43/CHANGELOG.md)、
-  [Vue Test Utils 发布说明](https://github.com/vuejs/test-utils/releases/tag/v2.5.1)和
-  [Changesets 修复](https://github.com/changesets/changesets/releases/tag/%40changesets%2Fcli%403.0.3)作为补丁升级依据。
-- 依赖审计发现原 `nanoid 3.3.17` 固定版本命中
-  [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8)，更新为同代修复版 `3.3.18`；
-  公告涉及自定义生成器在长度为零时无限循环，未据此推断业务应用存在可利用入口。
-- 声明插件按[维护者建议](https://github.com/qmhc/unplugin-dts/tree/main/packages/vite-plugin-dts)
-  从 `vite-plugin-dts` 切到 `unplugin-dts`，显式使用 Vue processor。
+- 开发机和 CI 使用 Node.js 26 LTS。pnpm 的精确版本由根目录的 `packageManager` 声明，CI 使用 Linux 生成并校验锁文件。
+- Vite+ 1.7.0 配套使用 Vite core 8.3.8000 和 Vitest 5.1.0。`@guanxiangkai/build-config` 的消费项目也需要使用兼容的 Vite+ 1.x。参见 [Vite+ 发布说明](https://github.com/voidzero-dev/vite-plus/releases/tag/v1.7.0)。
+- Vue 运行时和 SFC 编译器同步固定为 3.5.46。纯 TypeScript 包使用 7.0.2，UI 包的 SFC 宏解析和声明生成通过命名 catalog `vueCompiler` 使用 TypeScript 6.0.3 的 JavaScript Compiler API。
+- UI 声明由 `unplugin-dts` 的 Vue processor 生成。发布检查用 `publint` 检查打包后的入口和声明文件。
 - 评估了 VueUse 与 TanStack Query：目前没有跨页面查询缓存、失效广播或离线持久化需求，现有 latest-request
   策略已覆盖页面查询的直接需求，保留小型 composable；以后出现共享缓存需求时再引入 QueryClient，避免双重查询状态。
 - 制品摘要按 Node 官方 [增量 Hash](https://nodejs.org/docs/latest-v24.x/api/crypto.html#hashupdatedata-inputencoding)
@@ -158,7 +128,7 @@ const platform = createPlatformClient({
 
 `ReadableStream` 请求体（包括转换钩子生成的流）只发送一次，401 不触发自动恢复或重放。
 取消信号与超时覆盖异步身份提供器和转换钩子的等待；钩子自身已启动的外部工作仍由钩子实现负责取消。
-查询控制器仅控制结果是否提交，不会自动取消消费端已经发送的网络请求。
+查询回调会收到一个 `AbortSignal`。将它传给请求层后，后续查询、显式失效和组件卸载都可以取消旧请求。忽略该信号的回调仍受结果提交策略保护。
 
 会话 Store 默认只使用内存，不把访问令牌和刷新令牌写入浏览器存储。确需跨页面刷新保留会话时，产品可显式注入 `createBrowserSessionStorage()`，但必须先完成 XSS 威胁建模、严格 CSP 与退出清理；更高安全级别的部署应由服务端使用 `HttpOnly`、`Secure`、`SameSite` Cookie，并配套 CSRF 防护。
 

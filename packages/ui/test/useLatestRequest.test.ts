@@ -124,4 +124,26 @@ describe("useLatestRequest", () => {
     expect(controller!.loading.value).toBe(false);
     scope.stop();
   });
+
+  it("开始新请求时取消前一个请求", async () => {
+    const scope = effectScope();
+    const controller = scope.run(useLatestRequest)!;
+    let firstSignal!: AbortSignal;
+    const first = controller.run(
+      (signal) => {
+        firstSignal = signal;
+        return new Promise<string>((resolve) => setTimeout(() => resolve("旧结果"), 10));
+      },
+      { onSuccess: vi.fn(), onError: vi.fn() },
+    );
+    const second = controller.run(async () => "新结果", {
+      onSuccess: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    expect(firstSignal.aborted).toBe(true);
+    await expect(first).resolves.toBe(false);
+    await expect(second).resolves.toBe(true);
+    scope.stop();
+  });
 });

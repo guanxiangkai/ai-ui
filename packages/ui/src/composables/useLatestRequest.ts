@@ -17,7 +17,7 @@ export interface LatestRequestController {
   /**
    * 执行请求，只允许当前最新的一次请求提交成功或失败状态。
    *
-   * @param request 不应直接修改页面状态的异步请求。
+   * @param request 不应直接修改页面状态的异步请求；可使用 signal 主动取消底层 Fetch。
    * @param callbacks 最新请求完成后的状态提交回调。
    * @returns 当前请求是否作为最新请求完成并提交了结果。
    */
@@ -38,22 +38,28 @@ export function useLatestRequest(
   policy: RequestCommitPolicy = new LatestRequestPolicy(),
 ): LatestRequestController {
   const loading = ref(false);
+  let activeController: AbortController | undefined;
 
   function invalidate(): void {
+    activeController?.abort();
+    activeController = undefined;
     policy.invalidate();
     loading.value = false;
   }
 
   async function run<T>(
-    request: () => Promise<T>,
+    request: (signal: AbortSignal) => Promise<T>,
     callbacks: LatestRequestCallbacks<T>,
   ): Promise<boolean> {
     const token = policy.begin();
+    activeController?.abort();
+    const controller = new AbortController();
+    activeController = controller;
     loading.value = true;
     try {
       let value: T;
       try {
-        value = await request();
+        value = await request(controller.signal);
       } catch (error: unknown) {
         if (!policy.canCommit(token)) return false;
         callbacks.onError(error);
@@ -63,6 +69,7 @@ export function useLatestRequest(
       callbacks.onSuccess(value);
       return true;
     } finally {
+      if (activeController === controller) activeController = undefined;
       if (policy.canCommit(token)) loading.value = false;
     }
   }
